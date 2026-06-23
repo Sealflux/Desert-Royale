@@ -1,6 +1,4 @@
 import { Client } from "boardgame.io/react";
-
-// ── The shape of our game state ──
 interface PlayerState {
   x: number;
   y: number;
@@ -12,13 +10,17 @@ interface PlayerState {
   range: number;
   dead?: boolean;
 }
-
 interface GameState {
   boardSize: number;
   players: Record<string, PlayerState>;
+  walls: Wall[];
 }
-
-// ── The engine ──
+interface Wall {
+  x: number;
+  y: number;
+  direction: "horizontal" | "vertical";
+  type: "full" | "half";
+}
 const DesertRoyale = {
   setup: ({ ctx }: any): GameState => {
     const players: Record<string, PlayerState> = {};
@@ -36,7 +38,6 @@ const DesertRoyale = {
         dead: false,
       };
       const player = players[id];
-      // Ensure no two players start in the same position
       while (
         Object.entries(players).some(
           ([otherId, otherPlayer]) =>
@@ -49,20 +50,15 @@ const DesertRoyale = {
         player.y = Math.floor(Math.random() * (ctx.numPlayers * 2 + 1));
       }
     }
-    return { boardSize: Object.keys(players).length * 2+1, players };
+    return { boardSize: Object.keys(players).length * 2+1, players, walls: [] };
   },
   moves: {
     turnHead: ({ G, ctx, events }, direction) => {
   const player = G.players[ctx.currentPlayer];
   
-  // Already facing that way? Do nothing
   if (player.facing === direction) return;
-  
-  // Spend AP and turn
   player.ap -= 1;
   player.facing = direction;
-  
-  // Auto-end if out of AP
   if (player.ap === 0) {
     events.endTurn();
   }
@@ -72,30 +68,53 @@ const DesertRoyale = {
     const direction = player.facing;
     let newX = player.x;
     let newY = player.y;
-    if (direction === "N") newY -= 1;
+
+    if (direction === "N") 
+      newY -= 1;
     else if (direction === "E") newX += 1;
     else if (direction === "S") newY += 1;
     else if (direction === "W") newX -= 1;
-
-    // Check bounds
     if (newX < 0 || newX >= G.boardSize || newY < 0 || newY >= G.boardSize) {
-      return; // Out of bounds, do nothing
-    }
-
-    // Check for other players in the new position
+      return;
+      }
     const occupied = Object.keys(G.players).some((id) => {
-  const p = G.players[id];
-  return id !== ctx.currentPlayer && p.x === newX && p.y === newY;
-});
+    const p = G.players[id];
+    return id !== ctx.currentPlayer && p.x === newX && p.y === newY;});
     if (occupied) {
-      return; // Position occupied, do nothing
+      return; 
+      }
+    let wallX: number;
+    let wallY: number;
+    let wallDirection: "horizontal" | "vertical";
+
+    if (direction === "N") {
+      wallX = player.x;
+      wallY = player.y - 1;
+      wallDirection = "horizontal";
+    } else if (direction === "S") {
+      wallX = player.x;
+      wallY = player.y;
+      wallDirection = "horizontal";
+    } else if (direction === "E") {
+      wallX = player.x;
+      wallY = player.y;
+      wallDirection = "vertical";
+    } else { // W
+      wallX = player.x - 1;
+      wallY = player.y;
+      wallDirection = "vertical";
     }
 
-    // Move player
+    const wallBlocking = G.walls.some(
+      (w) => w.x === wallX && w.y === wallY && w.direction === wallDirection
+    );
+
+    if (wallBlocking) {
+      return;
+    }
     player.x = newX;
     player.y = newY;
     player.ap -= 1;
-    // Auto-end if out of AP
     if (player.ap === 0) {
       events.endTurn();
   }
@@ -103,36 +122,23 @@ const DesertRoyale = {
   shoot: ({ G, ctx, events }) => {
   const player = G.players[ctx.currentPlayer];
   const boardSize = G.boardSize;
-
-  // Need AP to shoot
-  if (player.ap < 1) return;
-
-  // Need bullets
   if (player.bullets.length === 0) return;
-
-  // Determine direction offsets
   const dx = player.facing === "E" ? 1 : player.facing === "W" ? -1 : 0;
   const dy = player.facing === "S" ? 1 : player.facing === "N" ? -1 : 0;
-
-  // Check up to 3 tiles in facing direction
   for (let i = 1; i <= 3; i++) {
     const tx = player.x + dx * i;
     const ty = player.y + dy * i;
-
-    // Off the board? Stop checking
     if (tx < 0 || tx >= boardSize || ty < 0 || ty >= boardSize) break;
 
-    // Find a player at this tile
     const target = Object.entries(G.players).find(([id, p]) => {
-  const otherPlayer = p as PlayerState;
-  return id !== ctx.currentPlayer && otherPlayer.x === tx && otherPlayer.y === ty;
+    const otherPlayer = p as PlayerState;
+    return id !== ctx.currentPlayer && otherPlayer.x === tx && otherPlayer.y === ty;
 });
 
     if (target) {
       const targetPlayer = target[1] as PlayerState;
       targetPlayer.hp -= 1;
 
-      // Remove one bullet and spend AP
       player.bullets.pop();
       player.ap -= 1;
 
@@ -148,8 +154,6 @@ const DesertRoyale = {
       if (allDead) {
         events.endGame({ winner: ctx.currentPlayer });
       }
-
-      // Auto-end if out of AP
       if (player.ap === 0) {
         events.endTurn();
       }
@@ -163,7 +167,6 @@ const DesertRoyale = {
     if (player.bullets.length === 3) return; // Max bullets reached
     player.bullets.push(newBulletType);
     player.ap -= 1;
-    // Auto-end if out of AP
     if (player.ap === 0) {
       events.endTurn();
     }
@@ -176,8 +179,7 @@ const DesertRoyale = {
         events.endTurn();
         return;
       }
-      player.ap = 2; // Reset AP at the start of the turn
-      // Give them new cards if they have less than 2 AP cards in hand
+      player.ap = 2;
       while (player.hand.length < 2) {
         player.hand.push("AP Card"); // Placeholder for actual card logic
         // Need a function that selects a random card from the deck and adds it to the player's hand
@@ -186,7 +188,7 @@ const DesertRoyale = {
   },
 };
 
-// ── The UI ──
+
 function Board(props: any) {
   const G: GameState = props.G;
   const { boardSize, players } = G;
