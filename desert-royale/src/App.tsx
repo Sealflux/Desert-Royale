@@ -61,6 +61,7 @@ const DesertRoyale = {
   moves: {
     turnHead: ({ G, ctx, events }, direction) => {
   const player = G.players[ctx.currentPlayer];
+  if (G.gamePhase !== "play") return;
   
   if (player.facing === direction) return;
   player.ap -= 1;
@@ -71,6 +72,7 @@ const DesertRoyale = {
 },
   moveForward: ({ G, ctx, events}) => {
     const player = G.players[ctx.currentPlayer];
+    if (G.gamePhase !== "play") return;
     const direction = player.facing;
     let newX = player.x;
     let newY = player.y;
@@ -127,6 +129,7 @@ const DesertRoyale = {
 },
   shoot: ({ G, ctx, events }) => {
   const player = G.players[ctx.currentPlayer];
+  if (G.gamePhase !== "play") return;
   const boardSize = G.boardSize;
   if (player.bullets.length === 0) return;
   const dx = player.facing === "E" ? 1 : player.facing === "W" ? -1 : 0;
@@ -173,6 +176,7 @@ if (wallBlockingShot) break;
 },
   reload: ({ G, ctx, events }) => {
     const player = G.players[ctx.currentPlayer];
+    if (G.gamePhase !== "play") return;
     const newBulletType = "Normal"; // For simplicity, always reload a normal bullet
     if (player.bullets.length === 3) return; // Max bullets reached
     player.bullets.push(newBulletType);
@@ -200,6 +204,10 @@ if (wallBlockingShot) break;
     if (player.wallsToPlace.full <= 0 && player.wallsToPlace.half <= 0) 
       events.endTurn();
   }
+  //playCard: ({ G, ctx, events }, cardIndex: number) => {
+    //const player = G.players[ctx.currentPlayer];
+    //if (G.gamePhase === "placement") return;
+    // Implement card effects based on the cardtype. 
 },
   turn: {
     onBegin: ({G, ctx, events}) => {
@@ -207,6 +215,12 @@ if (wallBlockingShot) break;
       if (player.dead) {
         events.endTurn();
         return;
+      }
+      if (G.gamePhase === "placement") {
+        const totalWallsLeft = player.wallsToPlace.full + player.wallsToPlace.half;
+        if (totalWallsLeft === 0) {
+          G.gamePhase = "play";
+        }
       }
       player.ap = 2;
       while (player.hand.length < 2) {
@@ -299,6 +313,17 @@ borderBottom: hoveredTile?.x === col && hoveredTile?.y === row
     <div style={{ padding: 20 }}>
       <h2>Desert Royale</h2>
       {grid}
+      <div>
+        <p>Current Phase: {G.gamePhase}</p>
+        <p>Current Turn: Player {props.ctx.currentPlayer}</p>
+      </div>
+      {G.gamePhase === "placement" && (
+        <div>
+          <p>Player {props.ctx.currentPlayer}, Place Your Walls!</p>
+          <p>Full Walls Left: {G.players[props.ctx.currentPlayer]?.wallsToPlace.full}</p>
+          <p>Half Walls Left: {G.players[props.ctx.currentPlayer]?.wallsToPlace.half}</p>
+        </div>
+      )}
       {G.gamePhase === "placement" && selectedTile && (
   <div>
     <p>Place wall at ({selectedTile.x}, {selectedTile.y}):</p>
@@ -316,26 +341,30 @@ borderBottom: hoveredTile?.x === col && hoveredTile?.y === row
     </button>
   </div>
 )}
-      <p>Current Turn: Player {props.ctx.currentPlayer}</p>
-      <p>Current Direction: {props.G.players[props.ctx.currentPlayer]?.facing}</p>
-      <p>Current HP: {props.G.players[props.ctx.currentPlayer]?.hp}</p>
-      <p>Current Ap: {props.G.players[props.ctx.currentPlayer]?.ap}</p>
-      <p>Current Hand: {props.G.players[props.ctx.currentPlayer]?.hand.join(", ")}</p>
-      <p>
-  Bullets:{" "}
-  {G.players[props.ctx.currentPlayer]?.bullets.map((b, i) => (
-    <span key={i} style={{ marginRight: 4 }}>
-      {b === "Normal" ? "🔵" : b === "Piercing" ? "🔴" : b === "Shotgun" ? "🟡" : null}
-    </span>
-  ))}
-</p>
-      <button onClick={() => props.moves.turnHead("N")}>Turn North↑</button>
-      <button onClick={() => props.moves.turnHead("E")}>Turn East→</button>
-      <button onClick={() => props.moves.turnHead("S")}>Turn South↓</button>
-      <button onClick={() => props.moves.turnHead("W")}>Turn West←</button>
-      <button onClick={() => props.moves.moveForward()}>Move Forward</button>
-      <button onClick={() => props.moves.shoot()}>Shoot</button>
-      <button onClick={() => props.moves.reload()}>Reload</button>
+{G.gamePhase === "play" && (
+  <div>
+    <p>Current Turn: Player {props.ctx.currentPlayer} </p>
+    <p>Current Direction: {props.G.players[props.ctx.currentPlayer]?.facing}</p>
+    <p>Current HP: {props.G.players[props.ctx.currentPlayer]?.hp}</p>
+    <p>Current Ap: {props.G.players[props.ctx.currentPlayer]?.ap}</p>
+    <p>Current Hand: {props.G.players[props.ctx.currentPlayer]?.hand.join(", ")}</p>
+    <p>
+      Bullets:{" "}
+      {G.players[props.ctx.currentPlayer]?.bullets.map((b, i) => (
+        <span key={i} style={{ marginRight: 4 }}>
+          {b === "Normal" ? "🔵" : b === "Piercing" ? "🔴" : b === "Shotgun" ? "🟡" : null}
+        </span>
+      ))}
+    </p>
+    <button onClick={() => props.moves.turnHead("N")}>Turn North↑</button>
+    <button onClick={() => props.moves.turnHead("E")}>Turn East→</button>
+    <button onClick={() => props.moves.turnHead("S")}>Turn South↓</button>
+    <button onClick={() => props.moves.turnHead("W")}>Turn West←</button>
+    <button onClick={() => props.moves.moveForward()}>Move Forward</button>
+    <button onClick={() => props.moves.shoot()}>Shoot</button>
+    <button onClick={() => props.moves.reload()}>Reload</button>
+  </div>
+)}
     </div>
   );
 }
