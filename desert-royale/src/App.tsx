@@ -1,5 +1,5 @@
 import { Client } from "boardgame.io/react";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 interface PlayerState {
   x: number;
   y: number;
@@ -11,6 +11,7 @@ interface PlayerState {
   range: number;
   dead?: boolean;
   wallsToPlace: { full: number; half: number };
+  turnStartTime?: number;
 }
 interface GameState {
   boardSize: number;
@@ -42,6 +43,7 @@ const DesertRoyale = {
         range: 3,
         dead: false,
         wallsToPlace: { full: 2, half: 2 },
+        turnStartTime: Date.now(),
       };
       const player = players[id];
       while (
@@ -127,14 +129,14 @@ const DesertRoyale = {
       events.endTurn();
   }
 },
-  shoot: ({ G, ctx, events }) => {
+  shootForward: ({ G, ctx, events }) => {
   const player = G.players[ctx.currentPlayer];
   if (G.gamePhase !== "play") return;
   const boardSize = G.boardSize;
   if (player.bullets.length === 0) return;
   const dx = player.facing === "E" ? 1 : player.facing === "W" ? -1 : 0;
   const dy = player.facing === "S" ? 1 : player.facing === "N" ? -1 : 0;
-  for (let i = 1; i <= 3; i++) {
+  for (let i = 1; i <= player.range; i++) {
     const tx = player.x + dx * i;
     const ty = player.y + dy * i;
     if (tx < 0 || tx >= boardSize || ty < 0 || ty >= boardSize) break;
@@ -174,6 +176,117 @@ if (wallBlockingShot) break;
     }
   }
 },
+  shootDiagonallyLeft: ({ G, ctx, events }) => {
+    const player = G.players[ctx.currentPlayer];
+    if (G.gamePhase !== "play") return;
+    if (player.bullets.length === 0) return;
+    const facing = player.facing;
+    let dx = 0;
+    let dy = 0;
+    if (facing === "N") {
+      dx = -1; dy = -1; // NW
+    } else if (facing === "E") {
+      dx = 1; dy = -1; // NE
+    } else if (facing === "S") {
+      dx = 1; dy = 1; // SE
+    } else if (facing === "W") {
+      dx = -1; dy = 1; // SW
+    }
+    const tx = player.x + dx;
+    const ty = player.y + dy;
+    if (tx < 0 || tx >= G.boardSize || ty < 0 || ty >= G.boardSize) return;
+
+    const wallBlockingShot = G.walls.some((w) => {
+      if (w.type === "half") return false;
+      if (w.direction === "vertical") {
+        return w.x === Math.min(player.x, tx) && w.y === player.y;
+      } else {
+        return w.x === player.x && w.y === Math.min(player.y, ty);
+      }
+    });
+    if (wallBlockingShot) return;
+
+    const target = Object.entries(G.players).find(([id, p]) => {
+      const otherPlayer = p as PlayerState;
+      return id !== ctx.currentPlayer && otherPlayer.x === tx && otherPlayer.y === ty;
+    })
+    if (target) {
+      const targetPlayer = target[1] as PlayerState;
+      targetPlayer.hp -= 1;
+      player.bullets.pop();
+      player.ap -= 1;
+
+      if (targetPlayer.hp <= 0) {
+        targetPlayer.dead = true;
+      }
+      const allDead = Object.entries(G.players).every(([id, p]) => {
+        const otherPlayer = p as PlayerState;
+        return id === ctx.currentPlayer || otherPlayer.dead;
+      });
+      if (allDead) {
+        events.endGame({ winner: ctx.currentPlayer });
+      }
+      if (player.ap === 0) {
+        events.endTurn();
+      }
+    }
+  },
+  shootDiagonallyRight: ({ G, ctx, events }) => {
+    const player = G.players[ctx.currentPlayer];
+    if (G.gamePhase !== "play") return;
+    if (player.bullets.length === 0) return;
+    const facing = player.facing;
+    let dx = 0;
+    let dy = 0;
+    if (facing === "N") {
+      dx = 1; dy = -1; // NE
+    } else if (facing === "E") {
+      dx = 1; dy = 1; // SE
+    } else if (facing === "S") {
+      dx = -1; dy = 1; // SW
+    } else if (facing === "W") {
+      dx = -1; dy = -1; // NW
+    }
+    const tx = player.x + dx;
+    const ty = player.y + dy;
+    if (tx < 0 || tx >= G.boardSize || ty < 0 || ty >= G.boardSize) return;
+
+    const wallBlockingShot = G.walls.some((w) => {
+      if (w.type === "half") return false;
+      if (w.direction === "vertical") {
+        return w.x === Math.min(player.x, tx) && w.y === player.y;
+      } else {
+        return w.x === player.x && w.y === Math.min(player.y, ty);
+      }
+
+    },);
+    if (wallBlockingShot) return;
+
+    const target = Object.entries(G.players).find(([id, p]) => {
+      const otherPlayer = p as PlayerState;
+      return id !== ctx.currentPlayer && otherPlayer.x === tx && otherPlayer.y === ty;
+    });
+    if (target) {
+      const targetPlayer = target[1] as PlayerState;
+      targetPlayer.hp -= 1;
+      player.bullets.pop();
+      player.ap -= 1;
+
+      if (targetPlayer.hp <= 0) {
+        targetPlayer.dead = true;
+      }
+      const allDead = Object.entries(G.players).every(([id, p]) => {
+        const otherPlayer = p as PlayerState;
+        return id === ctx.currentPlayer || otherPlayer.dead;
+      });
+      if (allDead) {
+        events.endGame({ winner: ctx.currentPlayer });
+      }
+      if (player.ap === 0) {
+        events.endTurn();
+      }
+    }
+  },
   reload: ({ G, ctx, events }) => {
     const player = G.players[ctx.currentPlayer];
     if (G.gamePhase !== "play") return;
@@ -251,6 +364,23 @@ function Board(props: any) {
       </div>
     );
   }
+  const [timeLeft, setTimeLeft] = useState(30);
+  useEffect(() => {
+    if (G.gamePhase !== "play") return;
+    setTimeLeft(30);
+    const interval = setInterval(() => {
+      setTimeLeft((prev) => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          props.events.endTurn();
+          return 30;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [props.ctx.currentPlayer, G.players[props.ctx.currentPlayer]?.turnStartTime]);
+
   const grid = [];
   for (let row = 0; row < boardSize; row++) {
     const rowCells = [];
@@ -268,8 +398,8 @@ function Board(props: any) {
           onMouseLeave={() => setHoveredTile(null)}
           key={`${row}-${col}`}
           style={{
-  width: 65,
-  height: 65,
+  width: 70,
+  height:70,
   boxSizing: "border-box",
   borderLeft: G.walls.some(w => w.x === col - 1 && w.y === row && w.direction === "vertical")
   ? `4px solid ${G.walls.find(w => w.x === col - 1 && w.y === row && w.direction === "vertical")?.type === "full" ? "#8B4513" : "#D2B48C"}`
@@ -343,6 +473,7 @@ borderBottom: hoveredTile?.x === col && hoveredTile?.y === row
 )}
 {G.gamePhase === "play" && (
   <div>
+    <p>Time Left: {timeLeft} seconds</p>
     <p>Current Turn: Player {props.ctx.currentPlayer} </p>
     <p>Current Direction: {props.G.players[props.ctx.currentPlayer]?.facing}</p>
     <p>Current HP: {props.G.players[props.ctx.currentPlayer]?.hp}</p>
@@ -361,7 +492,9 @@ borderBottom: hoveredTile?.x === col && hoveredTile?.y === row
     <button onClick={() => props.moves.turnHead("S")}>Turn South↓</button>
     <button onClick={() => props.moves.turnHead("W")}>Turn West←</button>
     <button onClick={() => props.moves.moveForward()}>Move Forward</button>
-    <button onClick={() => props.moves.shoot()}>Shoot</button>
+    <button onClick={() => props.moves.shootForward()}>Shoot Forward </button>
+    <button onClick={() => props.moves.shootDiagonallyLeft()}>Shoot Diagonally Left</button>
+    <button onClick={() => props.moves.shootDiagonallyRight()}>Shoot Diagonally Right</button>
     <button onClick={() => props.moves.reload()}>Reload</button>
   </div>
 )}
@@ -372,7 +505,7 @@ borderBottom: hoveredTile?.x === col && hoveredTile?.y === row
 const App = Client({
   game: DesertRoyale,
   board: Board,
-  numPlayers: 2,
+  numPlayers: 3,
 });
 
 export default App;
