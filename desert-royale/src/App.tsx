@@ -18,6 +18,8 @@ interface GameState {
   players: Record<string, PlayerState>;
   walls: Wall[];
   gamePhase: "placement" | "play" | "gameover";
+  deck: Card[];
+  discard: Card[];
 }
 interface Wall {
   x: number;
@@ -26,6 +28,13 @@ interface Wall {
   type: "full" | "half";
 }
 
+interface Card {
+  id: string;
+  name: string;
+  type: string; // "Movement" | "Combat" | "Utility" | "Bullet"
+  effect: string; // Description of the card's effect
+  cost: number; // Action points required to play the card
+}
 
 const DesertRoyale = {
   setup: ({ ctx }: any): GameState => {
@@ -58,7 +67,44 @@ const DesertRoyale = {
         player.y = Math.floor(Math.random() * (ctx.numPlayers * 2 + 1));
       }
     }
-    return { boardSize: Object.keys(players).length * 2+1, players, walls: [{x:3, y:3, direction: "horizontal", type: "full"}, {x:1, y:3, direction: "vertical", type: "half"}], gamePhase: "placement" };
+    const deck: Card[] = [];
+    const deckList = [
+      // Movement
+      { id: "Sprint", name: "Sprint", type: "Movement", effect: "Move forward 1 space, Turn A Direction, Move forward 1 space", cost: 1 },
+      { id: "Leap", name: "Leap", type: "Movement", effect: "Jump forward over a wall 1 space", cost: 1 },
+      { id: "Dash", name: "Dash", type: "Movement", effect: "Move forward 2 spaces", cost: 1 },
+      { id: "Warp", name: "Warp", type: "Movement", effect: "Teleport to any unoccupied space on the board", cost: 2 },
+      // Combat
+      { id: "Scope", name: "Scope", type: "Combat", effect: "Increase range by 2 for this turn", cost: 1 },
+      { id: "Shove", name: "Shove", type: "Combat", effect: "Push an adjacent player 1 space in the direction you are facing.(Can trigger wall slam damage)", cost: 1 },
+      { id: "Telekinesis", name: "Telekinesis", type: "Combat", effect: "Push any player 1 space in any direction(Can trigger wall slam damage)", cost: 2 },
+      { id: "Mine", name: "Mine", type: "Combat", effect: "Place a mine on an adjacent space. Must be triggered by 'Detonate'", cost: 1 },
+      { id: "Detonate", name: "Detonate", type: "Combat", effect: "Detonate any mine on the board. A cross shaped area of effect will damage any player in the area for 1 damage", cost: 1},
+      // Utility
+      { id: "Heal", name: "Heal", type: "Utility", effect: "Restore 1 HP", cost: 2},
+      { id: "Break", name: "Break", type: "Utility", effect: "Destroy a wall on the board", cost: 1},
+      { id: "Build", name: "Build", type: "Utility", effect: "Place a wall on the board", cost: 1},
+      { id: "Conserve", name: "Conserve", type: "Utility", effect: "Store 1 AP for the next turn", cost: 1},
+      { id: "Armor", name: "Armor", type: "Utility", effect: "Gain 1 armor, Armor blocks the next bullet that hits you, and is destroyed in the process", cost: 1},
+      // Bullet
+      { id: "Piercing", name: "Piercing", type: "Bullet", effect: "Reload a piercing bullet. Piercing bullets go through walls", cost: 1},
+      { id: "Point-Blank", name: "Point-Blank", type: "Bullet", effect: "Reload a point-blank bullet. Point-blank bullets only have a range of 1, but deal 2 damage", cost: 1},
+      { id: "Disarming", name: "Disarming", type: "Bullet", effect: "Reload a disarming bullet. Disarming bullets unload all the attacked player's bullets", cost: 1},
+      { id: "Remove", name: "Remove", type: "Bullet", effect: "Reload an removing bullet. Removing bullets force the attacked player to discard a card of your choice.", cost: 1}, 
+      { id: "Boom", name: "Boom", type: "Bullet", effect: "Reload a booming bullet. Booming bullets deal 1 damage in a cross shaped area of effect, also destroying any walls", cost: 1},
+      { id: "Heavy", name: "Heavy", type: "Bullet", effect: "Reload a heavy bullet. Heavy bullets after dealing dealing, pushes the attacked player back 2 spaces(Can trigger wall slam damage)", cost: 2},
+      { id: "Shattering", name: "Shattering", type: "Bullet", effect: "Reload a shattering bullet. Shattering bullets ignores and breaks all armor.", cost: 1},
+      { id: "Backstab", name: "Backstab", type: "Bullet", effect: "Reload a backstabbing bullet. Backstabbing bullets deal 2 damage if the attacked player is facing away from you.", cost: 1},
+      { id: "Combo", name: "Combo", type: "Bullet", effect: "Reload a combo bullet. Combo bullets after hitting a player, pierces through and continues for 3 spaces.", cost: 1},
+      { id: "Vampire", name: "Vampire", type: "Bullet", effect: "Reload a vampire bullet. Vampire bullets heal the attacker for 1 HP after dealing damage.", cost: 2},
+    ];
+    for (const card of deckList) {
+      for (let i = 0; i< (ctx.numPlayers*2 +1); i++) {
+        deck.push({id: card.id+i, name: card.name, type: card.type, effect: card.effect, cost: card.cost})
+      };
+  }
+
+    return { boardSize: Object.keys(players).length * 2 + 1, players, walls: [], gamePhase: "placement", deck, discard: [] };
   },
   moves: {
     turnHead: ({ G, ctx, events }, direction) => {
