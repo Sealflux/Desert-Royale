@@ -103,7 +103,10 @@ const DesertRoyale = {
         deck.push({id: card.id+i, name: card.name, type: card.type, effect: card.effect, cost: card.cost})
       };
   }
-
+    for (let i = deck.length - 1; i>0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [deck[i], deck[j]] = [deck[j], deck[i]];
+    }
     return { boardSize: Object.keys(players).length * 2 + 1, players, walls: [], gamePhase: "placement", deck, discard: [] };
   },
   moves: {
@@ -326,6 +329,7 @@ if (wallBlockingShot) break;
         return id === ctx.currentPlayer || otherPlayer.dead;
       });
       if (allDead) {
+        G.gamePhase = "gameover";
         events.endGame({ winner: ctx.currentPlayer });
       }
       if (player.ap === 0) {
@@ -362,11 +366,28 @@ if (wallBlockingShot) break;
 
     if (player.wallsToPlace.full <= 0 && player.wallsToPlace.half <= 0) 
       events.endTurn();
-  }
-  //playCard: ({ G, ctx, events }, cardIndex: number) => {
-    //const player = G.players[ctx.currentPlayer];
-    //if (G.gamePhase === "placement") return;
-    // Implement card effects based on the cardtype. 
+  },
+  playCard: ({ G, ctx, events }, cardIndex: number) => {
+    const player = G.players[ctx.currentPlayer];
+    if (G.gamePhase !== "play") return;
+    if (player.ap < 1) return;
+    if (cardIndex < 0 || cardIndex >= player.hand.length) return;
+    const cardId = player.hand[cardIndex];
+    const card = [...G.deck, ...G.discard].find(c => c.id === cardId)
+      || G.deck.find(c => c.id === cardId)
+      || G.discard.find(c => c.id === cardId);
+
+      if (!card) return;
+      if (player.ap < card.cost) return;
+
+      player.ap -= card.cost;
+      player.hand.splice(cardIndex, 1);
+      G.discard.push(card);
+
+      // Implement card effects here based on card.type and card.effect
+
+      if (player.ap === 0) events.endTurn();
+  },
 },
   turn: {
     onBegin: ({G, ctx, events}) => {
@@ -382,9 +403,18 @@ if (wallBlockingShot) break;
         }
       }
       player.ap = 2;
-      while (player.hand.length < 2) {
-        player.hand.push("AP Card"); // Placeholder for actual card logic
-        // Need a function that selects a random card from the deck and adds it to the player's hand
+      while (player.hand.length < 3) {
+        if (G.deck.length === 0) {
+          G.deck = G.discard;
+          G.discard = [];
+
+          for (let i = G.deck.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [G.deck[i], G.deck[j]] = [G.deck[j], G.deck[i]];
+          }
+        }
+        const drawnCard = G.deck.pop();
+        player.hand.push(drawnCard.id);
       }
     },
   },
@@ -490,8 +520,8 @@ borderBottom: hoveredTile?.x === col && hoveredTile?.y === row
       <h2>Desert Royale</h2>
       {grid}
       <div>
-        <p>Current Phase: {G.gamePhase}</p>
-        <p>Current Turn: Player {props.ctx.currentPlayer}</p>
+        <p>Phase: {G.gamePhase}</p>
+        <p>Turn: Player {props.ctx.currentPlayer}</p>
       </div>
       {G.gamePhase === "placement" && (
         <div>
@@ -520,11 +550,17 @@ borderBottom: hoveredTile?.x === col && hoveredTile?.y === row
 {G.gamePhase === "play" && (
   <div>
     <p>Time Left: {timeLeft} seconds</p>
-    <p>Current Turn: Player {props.ctx.currentPlayer} </p>
-    <p>Current Direction: {props.G.players[props.ctx.currentPlayer]?.facing}</p>
-    <p>Current HP: {props.G.players[props.ctx.currentPlayer]?.hp}</p>
-    <p>Current Ap: {props.G.players[props.ctx.currentPlayer]?.ap}</p>
-    <p>Current Hand: {props.G.players[props.ctx.currentPlayer]?.hand.join(", ")}</p>
+    <p>Turn: Player {props.ctx.currentPlayer} </p>
+    <p>Direction: {props.G.players[props.ctx.currentPlayer]?.facing}</p>
+    <p>HP: {props.G.players[props.ctx.currentPlayer]?.hp}</p>
+    <p>Ap: {props.G.players[props.ctx.currentPlayer]?.ap}</p>
+    <p>Hand:</p>
+    {props.G.players[props.ctx.currentPlayer]?.hand.map((cardId, index) => {
+      const card = [...G.deck, ...G.discard].find(c => c.id === cardId)
+      || G.deck.find(c => c.id === cardId)
+      || G.discard.find(c => c.id === cardId);
+      return (<button key={index} onClick={() => props.moves.playCard(index)} style={{ marginRight: 4 }}>{card?.name || cardId}</button>);
+    })};
     <p>
       Bullets:{" "}
       {G.players[props.ctx.currentPlayer]?.bullets.map((b, i) => (
