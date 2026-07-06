@@ -12,6 +12,8 @@ interface PlayerState {
   dead?: boolean;
   wallsToPlace: { full: number; half: number };
   turnStartTime?: number;
+  armor: number; // New property for armor
+  extraAP: number; // New property for extra action points
 }
 interface GameState {
   boardSize: number;
@@ -20,6 +22,7 @@ interface GameState {
   gamePhase: "placement" | "play" | "gameover";
   deck: Card[];
   discard: Card[];
+  allCards: Record<string, Card>;
 }
 interface Wall {
   x: number;
@@ -53,6 +56,8 @@ const DesertRoyale = {
         dead: false,
         wallsToPlace: { full: 2, half: 2 },
         turnStartTime: Date.now(),
+        armor: 0,
+        extraAP: 0,
       };
       const player = players[id];
       while (
@@ -107,7 +112,11 @@ const DesertRoyale = {
       const j = Math.floor(Math.random() * (i + 1));
       [deck[i], deck[j]] = [deck[j], deck[i]];
     }
-    return { boardSize: Object.keys(players).length * 2 + 1, players, walls: [], gamePhase: "placement", deck, discard: [] };
+    const allCards: Record<string, Card> = {};
+    deck.forEach(card => {
+      allCards[card.id] = card;
+    })
+    return { boardSize: Object.keys(players).length * 2 + 1, players, walls: [], gamePhase: "placement", deck, discard: [], allCards };
   },
   moves: {
     turnHead: ({ G, ctx, events }, direction) => {
@@ -189,20 +198,20 @@ const DesertRoyale = {
     const tx = player.x + dx * i;
     const ty = player.y + dy * i;
     if (tx < 0 || tx >= boardSize || ty < 0 || ty >= boardSize) break;
-    const wallBlockingShot = G.walls.some((w) => {
+    const bulletType = player.bullets[player.bullets.length - 1];
+    const wallBlockingShot = bulletType === "Piercing" ? false : G.walls.some((w) => {
   if (w.type === "half") return false; 
   if (w.direction === "vertical") {
     return w.x === tx - 1 && w.y === ty;
   } else {
     return w.x === tx && w.y === ty - 1;}});
-if (wallBlockingShot) break;
+  if (wallBlockingShot) break;
     const target = Object.entries(G.players).find(([id, p]) => {
     const otherPlayer = p as PlayerState;
     return id !== ctx.currentPlayer && otherPlayer.x === tx && otherPlayer.y === ty;});
     if (target) {
       const targetPlayer = target[1] as PlayerState;
       targetPlayer.hp -= 1;
-
       player.bullets.pop();
       player.ap -= 1;
 
@@ -244,8 +253,8 @@ if (wallBlockingShot) break;
     const tx = player.x + dx;
     const ty = player.y + dy;
     if (tx < 0 || tx >= G.boardSize || ty < 0 || ty >= G.boardSize) return;
-
-    const wallBlockingShot = G.walls.some((w) => {
+    const bulletType = player.bullets[player.bullets.length - 1];
+    const wallBlockingShot = bulletType === "Piercing" ? false : G.walls.some((w) => {
       if (w.type === "half") return false;
       if (w.direction === "vertical") {
         return w.x === Math.min(player.x, tx) && w.y === player.y;
@@ -299,8 +308,8 @@ if (wallBlockingShot) break;
     const tx = player.x + dx;
     const ty = player.y + dy;
     if (tx < 0 || tx >= G.boardSize || ty < 0 || ty >= G.boardSize) return;
-
-    const wallBlockingShot = G.walls.some((w) => {
+    const bulletType = player.bullets[player.bullets.length - 1];
+    const wallBlockingShot = bulletType === "Piercing" ? false : G.walls.some((w) => {
       if (w.type === "half") return false;
       if (w.direction === "vertical") {
         return w.x === Math.min(player.x, tx) && w.y === player.y;
@@ -373,9 +382,7 @@ if (wallBlockingShot) break;
     if (player.ap < 1) return;
     if (cardIndex < 0 || cardIndex >= player.hand.length) return;
     const cardId = player.hand[cardIndex];
-    const card = [...G.deck, ...G.discard].find(c => c.id === cardId)
-      || G.deck.find(c => c.id === cardId)
-      || G.discard.find(c => c.id === cardId);
+    const card = G.allCards[cardId];
 
       if (!card) return;
       if (player.ap < card.cost) return;
@@ -385,7 +392,111 @@ if (wallBlockingShot) break;
       G.discard.push(card);
 
       // Implement card effects here based on card.type and card.effect
-
+      switch (card.type) {
+        case "Movement":
+          switch (card.name) {
+            case "Sprint":
+              // Implement sprint effect
+              break;
+            case "Leap":
+              // Implement leap effect
+              break;
+            case "Dash":
+              // Implement dash effect
+              break;
+            case "Warp":
+              // Implement warp effect
+              break;
+            default:
+              break;
+          }
+          break;
+        // Implement combat card effects
+        case "Combat":
+          switch (card.name) {
+            case "Scope":
+              // Implement scope effect
+              break;
+            case "Shove":
+              // Implement shove effect
+              break;
+            case "Telekinesis":
+              // Implement telekinesis effect
+              break;
+            case "Mine":
+              // Implement mine effect
+              break;
+            case "Detonate":
+              // Implement detonate effect
+              break;
+            default:
+              break;
+          }
+          break;
+        case "Utility":
+          // Implement utility card effects
+          switch (card.name) {
+            case "Heal":
+              player.hp = Math.min(player.hp + 1, 3); // If they heal at max hp, they just stay at max hp
+              break;
+              case "Break":
+                // Implement break effect
+                break;
+              case "Build":
+                // Implement build effect
+                break;
+                case "Conserve":
+                  // Implement conserve effect
+                  break;
+                case "Armor":
+                  // Implement armor effect
+                  break;
+                default:
+                  break;
+          }
+          break;
+        case "Bullet":
+          // Implement bullet card effects
+          switch (card.name) {
+            case "Piercing":
+              if (player.bullets.length == 3) player.bullets.pop();
+              player.bullets.push("Piercing");
+              break;
+            case "Point-Blank":
+              if (player.bullets.length == 3) player.bullets.pop();
+              player.bullets.push("Point-Blank");
+              break;
+            case "Disarming":
+              // Implement disarming bullet effect
+              break;
+            case "Remove":
+              // Implement removing bullet effect
+              break;
+            case "Boom":
+              // Implement booming bullet effect
+              break;
+            case "Heavy":
+              // Implement heavy bullet effect
+              break;
+            case "Shattering":
+              // Implement shattering bullet effect
+              break;
+            case "Backstab":
+              // Implement backstabbing bullet effect
+              break;
+            case "Combo":
+              // Implement combo bullet effect
+              break;
+            case "Vampire":
+              // Implement vampire bullet effect
+              break;
+            default:
+              break;
+          }
+          break;
+        default:
+          break;
+      }
       if (player.ap === 0) events.endTurn();
   },
 },
@@ -403,6 +514,10 @@ if (wallBlockingShot) break;
         }
       }
       player.ap = 2;
+      if (player.extraAP > 0){
+        player.ap += player.extraAP;
+        player.extraAP = 0;
+      }
       while (player.hand.length < 3) {
         if (G.deck.length === 0) {
           G.deck = G.discard;
@@ -556,16 +671,25 @@ borderBottom: hoveredTile?.x === col && hoveredTile?.y === row
     <p>Ap: {props.G.players[props.ctx.currentPlayer]?.ap}</p>
     <p>Hand:</p>
     {props.G.players[props.ctx.currentPlayer]?.hand.map((cardId, index) => {
-      const card = [...G.deck, ...G.discard].find(c => c.id === cardId)
-      || G.deck.find(c => c.id === cardId)
-      || G.discard.find(c => c.id === cardId);
-      return (<button key={index} onClick={() => props.moves.playCard(index)} style={{ marginRight: 4 }}>{card?.name || cardId}</button>);
-    })};
+  const card = G.allCards[cardId];
+  return (
+    <button 
+      key={index} 
+      onClick={() => props.moves.playCard(index)} 
+      style={{ marginRight: 4, marginBottom: 4 }}
+      title={card?.effect}
+    >
+      {card?.name || cardId} ({card?.cost} AP)
+      <br />
+      <span style={{ fontSize: 10 }}>{card?.effect}</span>
+    </button>
+  );
+})}
     <p>
       Bullets:{" "}
       {G.players[props.ctx.currentPlayer]?.bullets.map((b, i) => (
         <span key={i} style={{ marginRight: 4 }}>
-          {b === "Normal" ? "🔵" : b === "Piercing" ? "🔴" : b === "Shotgun" ? "🟡" : null}
+          {b === "Normal" ? "🔵" : b === "Piercing" ? "🔴" : b === "Point-Blank" ? "🟡" : null}
         </span>
       ))}
     </p>
