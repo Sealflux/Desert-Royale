@@ -197,9 +197,10 @@ const DesertRoyale = {
   for (let i = 1; i <= player.range; i++) {
     const tx = player.x + dx * i;
     const ty = player.y + dy * i;
-    if (tx < 0 || tx >= boardSize || ty < 0 || ty >= boardSize) break;
-    const bulletType = player.bullets[player.bullets.length - 1];
-    const wallBlockingShot = bulletType === "Piercing" ? false : G.walls.some((w) => {
+  if (tx < 0 || tx >= boardSize || ty < 0 || ty >= boardSize) break;
+  const bulletType = player.bullets[player.bullets.length - 1];
+  if (bulletType === "Point-Blank" && (i > 1)) break; // Out of range for point-blank bullets
+  const wallBlockingShot = bulletType === "Piercing" ? false : G.walls.some((w) => {
   if (w.type === "half") return false; 
   if (w.direction === "vertical") {
     return w.x === tx - 1 && w.y === ty;
@@ -211,7 +212,30 @@ const DesertRoyale = {
     return id !== ctx.currentPlayer && otherPlayer.x === tx && otherPlayer.y === ty;});
     if (target) {
       const targetPlayer = target[1] as PlayerState;
-      targetPlayer.hp -= 1;
+      if (bulletType === "Disarming") {
+        targetPlayer.bullets = [];
+        return;
+      }
+      if (bulletType === "Shattering") {
+        targetPlayer.armor = 0;
+      }
+      // Cutoff between damage bullets and utility bullets doing crap. Utility bullets still do 1 damage. Effects don't care about armor, only damage
+      let damage = 1; // Default damage for most bullets
+      if (bulletType === "Point-Blank") {
+        damage = 2; // Point-Blank bullets deal 2 damage
+      }
+      if (bulletType === "Backstab") {
+        const oppositefacing = {N: "S", S: "N", E: "W", W: "E"};
+        if (targetPlayer.facing === oppositefacing[player.facing]) damage = 2; // Backstab bullets deal 2 damage if the target is facing away
+      }
+      if (targetPlayer.armor > 0) {
+        targetPlayer.armor -= 1;
+        damage = 0;
+      }
+      targetPlayer.hp -= damage;
+      if (bulletType === "Vampire") {
+        player.hp = Math.min(player.hp + 1, 3); // Heal the shooter for 1 HP, but not above max HP
+      }
       player.bullets.pop();
       player.ap -= 1;
 
@@ -270,7 +294,30 @@ const DesertRoyale = {
     })
     if (target) {
       const targetPlayer = target[1] as PlayerState;
-      targetPlayer.hp -= 1;
+      if (bulletType === "Disarming") {
+        targetPlayer.bullets = [];
+      } 
+      if (bulletType === "Shattering") {
+        targetPlayer.armor = 0;
+        
+      } 
+      if (bulletType === "Vampire") {
+        player.hp = Math.min(player.hp + 1, 3); // Heal the shooter for 1 HP, but not above max HP
+      }
+      // Cutoff between damage bullets and utility bullets doing crap. Utility bullets still do 1 damage. Effects don't care about armor, only damage
+      let damage = 1;
+      if (bulletType === "Point-Blank") {
+        damage = 2;
+      }
+      if (bulletType === "Backstab") {
+        const oppositefacing = {N: "S", S: "N", E: "W", W: "E"};
+        if (targetPlayer.facing === oppositefacing[player.facing]) damage = 2;
+      }
+      if (targetPlayer.armor > 0) {
+       targetPlayer.armor -= 1;
+       damage = 0;
+      }
+      targetPlayer.hp -= damage;
       player.bullets.pop();
       player.ap -= 1;
 
@@ -326,7 +373,27 @@ const DesertRoyale = {
     });
     if (target) {
       const targetPlayer = target[1] as PlayerState;
-      targetPlayer.hp -= 1;
+      if (bulletType === "Disarming") {
+        targetPlayer.bullets = [];
+      }
+      if (bulletType === "Shattering") {
+        targetPlayer.armor = 0;
+      }
+      let damage = 1;
+      if (bulletType === "Point-Blank") {
+        damage = 2;
+      }
+      if (bulletType === "Backstab") {
+        const oppositefacing = {N: "S", S: "N", E: "W", W: "E"};
+        if (targetPlayer.facing === oppositefacing[player.facing]) damage = 2;
+      }
+      if (targetPlayer.armor > 0) { // Armor blocks one bullet, regardless of type(Vampire still heals the shooter)
+        damage = 0;
+      }
+      targetPlayer.hp -= damage;
+      if (bulletType === "Vampire") {
+        player.hp = Math.min(player.hp + 1, 3); // Heal the shooter for 1 HP, but not above max HP
+      }
       player.bullets.pop();
       player.ap -= 1;
 
@@ -344,6 +411,7 @@ const DesertRoyale = {
       if (player.ap === 0) {
         events.endTurn();
       }
+      return;
     }
   },
   reload: ({ G, ctx, events }) => {
@@ -446,10 +514,10 @@ const DesertRoyale = {
                 // Implement build effect
                 break;
                 case "Conserve":
-                  // Implement conserve effect
+                  player.extraAP += 1;
                   break;
                 case "Armor":
-                  // Implement armor effect
+                  player.armor += 1;
                   break;
                 default:
                   break;
@@ -459,36 +527,34 @@ const DesertRoyale = {
           // Implement bullet card effects
           switch (card.name) {
             case "Piercing":
-              if (player.bullets.length == 3) player.bullets.pop();
-              player.bullets.push("Piercing");
+              addBullet(player, "Piercing");
               break;
             case "Point-Blank":
-              if (player.bullets.length == 3) player.bullets.pop();
-              player.bullets.push("Point-Blank");
+              addBullet(player, "Point-Blank");
               break;
             case "Disarming":
-              // Implement disarming bullet effect
+              addBullet(player, "Disarming");
               break;
             case "Remove":
-              // Implement removing bullet effect
+              addBullet(player, "Remove");
               break;
             case "Boom":
-              // Implement booming bullet effect
+              addBullet(player, "Boom");
               break;
             case "Heavy":
-              // Implement heavy bullet effect
+              addBullet(player, "Heavy");
               break;
             case "Shattering":
-              // Implement shattering bullet effect
+              addBullet(player, "Shattering");
               break;
             case "Backstab":
-              // Implement backstabbing bullet effect
+              addBullet(player, "Backstab");
               break;
             case "Combo":
-              // Implement combo bullet effect
+              addBullet(player, "Combo");
               break;
             case "Vampire":
-              // Implement vampire bullet effect
+              addBullet(player, "Vampire");
               break;
             default:
               break;
@@ -534,6 +600,21 @@ const DesertRoyale = {
     },
   },
 };
+
+function addBullet(player, bulletType) {
+  if (player.bullets.length < 3) {
+        player.bullets.push(bulletType);
+    } else {
+        let normalIndex = player.bullets.indexOf("Normal");
+        
+        if (normalIndex !== -1) {
+            player.bullets.splice(normalIndex, 1);
+        } else {
+            player.bullets.shift();
+        }
+        player.bullets.push(bulletType);
+    }
+}
 
 
 function Board(props: any) {
@@ -611,18 +692,20 @@ borderBottom: hoveredTile?.x === col && hoveredTile?.y === row
   fontSize: 12,
   fontWeight: "bold",
 }}
-        >
-          {playerHere ? (
-  <>
+>{playerHere ? (<>
     <span>P{playerID} {facingArrows[(playerHere[1] as PlayerState).facing]}</span>
     <span style={{ fontSize: 10 }}>
       {"❤️".repeat((playerHere[1] as PlayerState).hp)}
     </span>
-  </>
+    </>
 ) : null}
+{(playerHere[1] as PlayerState).armor > 0 && (
+  <span style={{ fontSize: 10 }}>🛡️</span>
+)}
         </div>
       );
     }
+    
     grid.push(
       <div key={row} style={{ display: "flex" }}>
         {rowCells}
@@ -668,13 +751,16 @@ borderBottom: hoveredTile?.x === col && hoveredTile?.y === row
     <p>Turn: Player {props.ctx.currentPlayer} </p>
     <p>Direction: {props.G.players[props.ctx.currentPlayer]?.facing}</p>
     <p>HP: {props.G.players[props.ctx.currentPlayer]?.hp}</p>
+  {props.G.players[props.ctx.currentPlayer]?.armor > 0 && (
+  <p>Armor: {"🛡️".repeat(props.G.players[props.ctx.currentPlayer]?.armor)}</p>
+)}
     <p>Ap: {props.G.players[props.ctx.currentPlayer]?.ap}</p>
     <p>Hand:</p>
     {props.G.players[props.ctx.currentPlayer]?.hand.map((cardId, index) => {
   const card = G.allCards[cardId];
   return (
     <button 
-      key={index} 
+      key={index}
       onClick={() => props.moves.playCard(index)} 
       style={{ marginRight: 4, marginBottom: 4 }}
       title={card?.effect}
@@ -689,7 +775,18 @@ borderBottom: hoveredTile?.x === col && hoveredTile?.y === row
       Bullets:{" "}
       {G.players[props.ctx.currentPlayer]?.bullets.map((b, i) => (
         <span key={i} style={{ marginRight: 4 }}>
-          {b === "Normal" ? "🔵" : b === "Piercing" ? "🔴" : b === "Point-Blank" ? "🟡" : null}
+          {b === "Normal" ? "🔵" :
+           b === "Piercing" ? "🔴" :
+           b === "Point-Blank" ? "🟡" :
+           b === "Disarming" ? "🟢" :
+           b === "Shattering" ? "🔨":
+           b === "Vampire" ? "🩸":
+           b === "Backstab" ? "🗡️":
+           b === "Heavy" ? "💪":
+           b === "Boom" ? "💥":
+           b === "Combo" ? "🔗":
+           b === "Remove" ? "❌":
+            "⚪"}
         </span>
       ))}
     </p>
