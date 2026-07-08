@@ -147,7 +147,7 @@ const DesertRoyale = {
       }
     const occupied = Object.keys(G.players).some((id) => {
     const p = G.players[id];
-    return id !== ctx.currentPlayer && p.x === newX && p.y === newY;});
+    return id !== ctx.currentPlayer && !p.dead && p.x === newX && p.y === newY;});
     if (occupied) {
       return; 
       }
@@ -209,12 +209,11 @@ const DesertRoyale = {
   if (wallBlockingShot) break;
     const target = Object.entries(G.players).find(([id, p]) => {
     const otherPlayer = p as PlayerState;
-    return id !== ctx.currentPlayer && otherPlayer.x === tx && otherPlayer.y === ty;});
+    return id !== ctx.currentPlayer && !otherPlayer.dead && otherPlayer.x === tx && otherPlayer.y === ty;});
     if (target) {
       const targetPlayer = target[1] as PlayerState;
       if (bulletType === "Disarming") {
         targetPlayer.bullets = [];
-        return;
       }
       if (bulletType === "Shattering") {
         targetPlayer.armor = 0;
@@ -369,7 +368,7 @@ const DesertRoyale = {
 
     const target = Object.entries(G.players).find(([id, p]) => {
       const otherPlayer = p as PlayerState;
-      return id !== ctx.currentPlayer && otherPlayer.x === tx && otherPlayer.y === ty;
+      return id !== ctx.currentPlayer && !otherPlayer.dead && otherPlayer.x === tx && otherPlayer.y === ty;
     });
     if (target) {
       const targetPlayer = target[1] as PlayerState;
@@ -388,6 +387,7 @@ const DesertRoyale = {
         if (targetPlayer.facing === oppositefacing[player.facing]) damage = 2;
       }
       if (targetPlayer.armor > 0) { // Armor blocks one bullet, regardless of type(Vampire still heals the shooter)
+        targetPlayer.armor -= 1;
         damage = 0;
       }
       targetPlayer.hp -= damage;
@@ -470,7 +470,30 @@ const DesertRoyale = {
               // Implement leap effect
               break;
             case "Dash":
-              // Implement dash effect
+              for (let step = 0; step < 2; step++) {
+                const direction = player.facing;
+                let nx = player.x;
+                let ny = player.y;
+                if (direction == "N") ny -= 1;
+                else if (direction == "E") nx += 1;
+                else if (direction == "S") ny += 1;
+                else if (direction == "W") nx -= 1;
+                if (nx < 0 || nx >= G.boardSize || ny < 0 || ny >= G.boardSize) break;
+                const occupied = Object.values(G.players).some(
+                  (p:any) => p.x === nx && p.y === ny && !p.dead
+                );
+                if (occupied) break;
+                const wallBlocking = G.walls.some((w) => {
+                  if (direction === "N") return w.x === player.x && w.y === player.y - 1 && w.direction === "horizontal";
+                  if (direction === "E") return w.x === player.x && w.y === player.y && w.direction === "vertical";
+                  if (direction === "S") return w.x === player.x && w.y === player.y && w.direction === "horizontal";
+                  if (direction === "W") return w.x === player.x - 1 && w.y === player.y && w.direction === "vertical";
+                  return false;
+                });
+                if (wallBlocking) break;
+                player.x = nx;
+                player.y = ny;
+              }
               break;
             case "Warp":
               // Implement warp effect
@@ -483,7 +506,7 @@ const DesertRoyale = {
         case "Combat":
           switch (card.name) {
             case "Scope":
-              // Implement scope effect
+              player.range += 2;
               break;
             case "Shove":
               // Implement shove effect
@@ -580,6 +603,7 @@ const DesertRoyale = {
         }
       }
       player.ap = 2;
+      player.range = 3;
       if (player.extraAP > 0){
         player.ap += player.extraAP;
         player.extraAP = 0;
@@ -699,7 +723,7 @@ borderBottom: hoveredTile?.x === col && hoveredTile?.y === row
     </span>
     </>
 ) : null}
-{(playerHere[1] as PlayerState).armor > 0 && (
+{playerHere && (playerHere[1] as PlayerState).armor > 0 && (
   <span style={{ fontSize: 10 }}>🛡️</span>
 )}
         </div>
@@ -804,6 +828,9 @@ borderBottom: hoveredTile?.x === col && hoveredTile?.y === row
     </div>
   );
 }
+function GamePage() {
+    return <App />;
+}
 
 const App = Client({
   game: DesertRoyale,
@@ -811,4 +838,4 @@ const App = Client({
   numPlayers: 3,
 });
 
-export default App;
+export default GamePage;
