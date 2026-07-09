@@ -1,5 +1,8 @@
 import { Client } from "boardgame.io/react";
 import React, { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
+
+
 interface PlayerState {
   x: number;
   y: number;
@@ -45,8 +48,8 @@ const DesertRoyale = {
     for (let i = 0; i < ctx.numPlayers; i++) {
       const id = i.toString();
       players[id] = {
-        x: Math.floor(Math.random() * (ctx.numPlayers * 2 + 1)),
-        y: Math.floor(Math.random() * (ctx.numPlayers * 2 + 1)),
+        x: Math.floor(Math.random() * (ctx.numPlayers + 5)),
+        y: Math.floor(Math.random() * (ctx.numPlayers + 5)),
         facing: "N",
         hp: 3,
         bullets: ["Normal", "Normal", "Normal"], // Each player starts with 3 normal bullets
@@ -68,8 +71,8 @@ const DesertRoyale = {
             otherPlayer.y === player.y
         )
       ) {
-        player.x = Math.floor(Math.random() * (ctx.numPlayers * 2 + 1));
-        player.y = Math.floor(Math.random() * (ctx.numPlayers * 2 + 1));
+        player.x = Math.floor(Math.random() * (ctx.numPlayers + 5));
+        player.y = Math.floor(Math.random() * (ctx.numPlayers + 5));
       }
     }
     const deck: Card[] = [];
@@ -116,7 +119,7 @@ const DesertRoyale = {
     deck.forEach(card => {
       allCards[card.id] = card;
     })
-    return { boardSize: Object.keys(players).length * 2 + 1, players, walls: [], gamePhase: "placement", deck, discard: [], allCards };
+    return { boardSize: Object.keys(players).length + 5, players, walls: [], gamePhase: "placement", deck, discard: [], allCards };
   },
   moves: {
     turnHead: ({ G, ctx, events }, direction) => {
@@ -588,6 +591,37 @@ const DesertRoyale = {
       }
       if (player.ap === 0) events.endTurn();
   },
+  warp: ({ G, ctx, events }, cardIndex: number, tx: number, ty: number) => { // tx and ty are the target coords
+    const player = G.players[ctx.currentPlayer];
+    if (player.ap < 2) return;
+    if (tx < 0 || tx >= G.boardSize || ty < 0 || ty >= G.boardSize) return;
+    const occupied = Object.values(G.players).some((p:any) => !p.dead && p.x === tx && p.y === ty);
+    if (occupied) return;
+    const cardId = player.hand[cardIndex];
+    const card = G.allCards[cardId];
+    if (!card || card.name !== "Warp") return;
+    player.hand.splice(cardIndex, 1);
+    G.discard.push(card);
+    player.x = tx;
+    player.y = ty;
+    player.ap -= card.cost;
+    events.endTurn(); // Warp costs 2 AP, so we don't need to check if AP is 0, we just end the turn after warping
+  },
+  breakWall: ({ G, ctx, events}, cardIndex: number, x: number, y: number) => {
+    const player = G.players[ctx.currentPlayer];
+    const wallIndex = G.walls.findIndex(w => w.x === x && w.y === y);
+    if (wallIndex === -1) return;
+    const cardId = player.hand[cardIndex];
+    const card = G.allCards[cardId];
+    if (!card || card.name !== "Break") return;
+    player.hand.splice(cardIndex, 1);
+    G.discard.push(card);
+    G.walls.splice(wallIndex, 1);
+    if (player.ap === 0) events.endTurn();
+  },
+  buildWall: ({ G, ctx, events}, cardIndex: number, x: number, y: number) => {
+    const player = G.players[ctx.currentPlayer];
+  }
 },
   turn: {
     onBegin: ({G, ctx, events}) => {
@@ -645,191 +679,196 @@ function Board(props: any) {
   const G: GameState = props.G;
   const { boardSize, players } = G;
   const facingArrows: Record<string, string> = {
-    N: "↑",
-    E: "→",
-    S: "↓",
-    W: "←",
+    N: "↑", E: "→", S: "↓", W: "←",
   };
   const [selectedTile, setSelectedTile] = React.useState<{ x: number, y: number } | null>(null);
   const [hoveredTile, setHoveredTile] = useState<{ x: number; y: number } | null>(null);
+  const [pendingCard, setPendingCard] = useState<{ cardIndex: number; cardName: string } | null>(null);
+  const [timeLeft, setTimeLeft] = useState(30);
+
   if (props.ctx.gameover) {
     return (
-      <div style={{ padding: 20, textAlign: "center" }}>
-        <h1>🏆 Game Over 🏆</h1>
-        <h2>Player {props.ctx.gameover.winner} wins!</h2>
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-5xl font-bold text-yellow-400 mb-4">🏆 Game Over 🏆</h1>
+          <h2 className="text-3xl text-white">Player {props.ctx.gameover.winner} wins!</h2>
+        </div>
       </div>
     );
   }
-  const [timeLeft, setTimeLeft] = useState(30);
+
   useEffect(() => {
     if (G.gamePhase !== "play") return;
     setTimeLeft(30);
     const interval = setInterval(() => {
       setTimeLeft((prev) => {
-        if (prev <= 1) {
-          clearInterval(interval);
-          props.events.endTurn();
-          return 30;
-        }
+        if (prev <= 1) { props.events.endTurn(); return 30; }
         return prev - 1;
       });
     }, 1000);
     return () => clearInterval(interval);
-  }, [props.ctx.currentPlayer, G.players[props.ctx.currentPlayer]?.turnStartTime]);
+  }, [props.ctx.currentPlayer]);
 
   const grid = [];
   for (let row = 0; row < boardSize; row++) {
     const rowCells = [];
     for (let col = 0; col < boardSize; col++) {
       const playerHere = Object.entries(players).find(
-  ([_id, p]) => !p.dead && p.x === col && p.y === row
-);
+        ([_id, p]) => !p.dead && p.x === col && p.y === row
+      );
       const playerID = playerHere ? playerHere[0] : null;
       const isCurrentPlayer = playerID === props.ctx.currentPlayer;
-      
+
       rowCells.push(
         <div
-          onClick = {(() => setSelectedTile({ x: col, y: row }))}
+          onClick={() => {
+            if (pendingCard) {
+              if (pendingCard.cardName === "Warp") props.moves.warp(pendingCard.cardIndex, col, row);
+              else if (pendingCard.cardName === "Break") props.moves.breakWall(pendingCard.cardIndex, col, row);
+              else if (pendingCard.cardName === "Build") props.moves.buildWall(pendingCard.cardIndex, col, row);
+              setPendingCard(null);
+            } else {
+              setSelectedTile({ x: col, y: row });
+            }
+          }}
           onMouseEnter={() => setHoveredTile({ x: col, y: row })}
           onMouseLeave={() => setHoveredTile(null)}
           key={`${row}-${col}`}
-          style={{
-  width: 70,
-  height:70,
-  boxSizing: "border-box",
-  borderLeft: G.walls.some(w => w.x === col - 1 && w.y === row && w.direction === "vertical")
-  ? `4px solid ${G.walls.find(w => w.x === col - 1 && w.y === row && w.direction === "vertical")?.type === "full" ? "#8B4513" : "#D2B48C"}`
-  : "1px solid #ccc",
-borderTop: G.walls.some(w => w.x === col && w.y === row - 1 && w.direction === "horizontal")
-  ? `4px solid ${G.walls.find(w => w.x === col && w.y === row - 1 && w.direction === "horizontal")?.type === "full" ? "#8B4513" : "#D2B48C"}`
-  : "1px solid #ccc",
-borderRight: hoveredTile?.x === col && hoveredTile?.y === row
-  ? "4px dashed #FFD700"
-  : "1px solid #ccc",
-borderBottom: hoveredTile?.x === col && hoveredTile?.y === row
-  ? "4px dashed #FFD700"
-  : "1px solid #ccc",
-  backgroundColor: isCurrentPlayer ? "#d9b54a" : playerHere ? "#4a90d9" : "#f0e6d2",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  fontSize: 12,
-  fontWeight: "bold",
-}}
->{playerHere ? (<>
-    <span>P{playerID} {facingArrows[(playerHere[1] as PlayerState).facing]}</span>
-    <span style={{ fontSize: 10 }}>
-      {"❤️".repeat((playerHere[1] as PlayerState).hp)}
-    </span>
-    </>
-) : null}
-{playerHere && (playerHere[1] as PlayerState).armor > 0 && (
-  <span style={{ fontSize: 10 }}>🛡️</span>
-)}
+          className={`w-16 h-16 border border-slate-600 flex flex-col items-center justify-center text-xs font-bold cursor-pointer transition-colors
+            ${isCurrentPlayer ? "bg-yellow-600 border-yellow-400 border-2" : playerHere ? "bg-blue-700" : "bg-slate-700 hover:bg-slate-600"}
+            ${G.walls.some(w => w.x === col - 1 && w.y === row && w.direction === "vertical") ? "border-l-4 " + (G.walls.find(w => w.x === col - 1 && w.y === row && w.direction === "vertical")?.type === "full" ? "border-l-amber-800" : "border-l-amber-400") : ""}
+            ${G.walls.some(w => w.x === col && w.y === row - 1 && w.direction === "horizontal") ? "border-t-4 " + (G.walls.find(w => w.x === col && w.y === row - 1 && w.direction === "horizontal")?.type === "full" ? "border-t-amber-800" : "border-t-amber-400") : ""}
+            ${(hoveredTile?.x === col && hoveredTile?.y === row) || (selectedTile?.x === col && selectedTile?.y === row) ? "border-r-4 border-b-4 border-r-yellow-400 border-b-yellow-400 border-dashed" : ""}
+          `}
+        >
+          {playerHere ? (
+            <>
+              <span className="text-white">P{playerID} {facingArrows[(playerHere[1] as PlayerState).facing]}</span>
+              <span className="text-red-400 text-xs">
+                {"❤️".repeat((playerHere[1] as PlayerState).hp)}
+              </span>
+              {(playerHere[1] as PlayerState).armor > 0 && <span className="text-xs">🛡️</span>}
+            </>
+          ) : null}
         </div>
       );
     }
-    
-    grid.push(
-      <div key={row} style={{ display: "flex" }}>
-        {rowCells}
-      </div>
-    );
+    grid.push(<div key={row} className="flex">{rowCells}</div>);
   }
 
   return (
-    <div style={{ padding: 20 }}>
-      <h2>Desert Royale</h2>
-      {grid}
-      <div>
-        <p>Phase: {G.gamePhase}</p>
-        <p>Turn: Player {props.ctx.currentPlayer}</p>
-      </div>
-      {G.gamePhase === "placement" && (
+    <div className="min-h-screen bg-slate-900 text-white p-6 font-sans">
+      <div className="flex gap-6 max-w-7xl mx-auto">
+        
+        {/* Left: Board */}
         <div>
-          <p>Player {props.ctx.currentPlayer}, Place Your Walls!</p>
-          <p>Full Walls Left: {G.players[props.ctx.currentPlayer]?.wallsToPlace.full}</p>
-          <p>Half Walls Left: {G.players[props.ctx.currentPlayer]?.wallsToPlace.half}</p>
+          <h2 className="text-2xl font-bold text-red-500 mb-4"> Desert Royale</h2>
+          <div className="bg-slate-800 p-2 rounded-xl">{grid}</div>
+          <p className="mt-2 text-slate-400 text-sm">Phase: {G.gamePhase} | Turn: Player {props.ctx.currentPlayer}</p>
+          {pendingCard && (
+            <p className="text-yellow-400 mt-1">Click a tile to use {pendingCard.cardName}</p>
+          )}
         </div>
-      )}
-      {G.gamePhase === "placement" && selectedTile && (
-  <div>
-    <p>Place wall at ({selectedTile.x}, {selectedTile.y}):</p>
-    <button onClick={() => { props.moves.placeWall(selectedTile.x, selectedTile.y, "horizontal", "full"); setSelectedTile(null); }}>
-      Full Horizontal Wall
-    </button>
-    <button onClick={() => { props.moves.placeWall(selectedTile.x, selectedTile.y, "vertical", "full"); setSelectedTile(null); }}>
-      Full Vertical Wall
-    </button>
-    <button onClick={() => { props.moves.placeWall(selectedTile.x, selectedTile.y, "horizontal", "half"); setSelectedTile(null); }}>
-      Half Horizontal Wall
-    </button>
-    <button onClick={() => { props.moves.placeWall(selectedTile.x, selectedTile.y, "vertical", "half"); setSelectedTile(null); }}>
-      Half Vertical Wall
-    </button>
-  </div>
-)}
-{G.gamePhase === "play" && (
-  <div>
-    <p>Time Left: {timeLeft} seconds</p>
-    <p>Turn: Player {props.ctx.currentPlayer} </p>
-    <p>Direction: {props.G.players[props.ctx.currentPlayer]?.facing}</p>
-    <p>HP: {props.G.players[props.ctx.currentPlayer]?.hp}</p>
-  {props.G.players[props.ctx.currentPlayer]?.armor > 0 && (
-  <p>Armor: {"🛡️".repeat(props.G.players[props.ctx.currentPlayer]?.armor)}</p>
-)}
-    <p>Ap: {props.G.players[props.ctx.currentPlayer]?.ap}</p>
-    <p>Hand:</p>
-    {props.G.players[props.ctx.currentPlayer]?.hand.map((cardId, index) => {
-  const card = G.allCards[cardId];
-  return (
-    <button 
-      key={index}
-      onClick={() => props.moves.playCard(index)} 
-      style={{ marginRight: 4, marginBottom: 4 }}
-      title={card?.effect}
-    >
-      {card?.name || cardId} ({card?.cost} AP)
-      <br />
-      <span style={{ fontSize: 10 }}>{card?.effect}</span>
-    </button>
-  );
-})}
-    <p>
-      Bullets:{" "}
-      {G.players[props.ctx.currentPlayer]?.bullets.map((b, i) => (
-        <span key={i} style={{ marginRight: 4 }}>
-          {b === "Normal" ? "🔵" :
-           b === "Piercing" ? "🔴" :
-           b === "Point-Blank" ? "🟡" :
-           b === "Disarming" ? "🟢" :
-           b === "Shattering" ? "🔨":
-           b === "Vampire" ? "🩸":
-           b === "Backstab" ? "🗡️":
-           b === "Heavy" ? "💪":
-           b === "Boom" ? "💥":
-           b === "Combo" ? "🔗":
-           b === "Remove" ? "❌":
-            "⚪"}
-        </span>
-      ))}
-    </p>
-    <button onClick={() => props.moves.turnHead("N")}>Turn North↑</button>
-    <button onClick={() => props.moves.turnHead("E")}>Turn East→</button>
-    <button onClick={() => props.moves.turnHead("S")}>Turn South↓</button>
-    <button onClick={() => props.moves.turnHead("W")}>Turn West←</button>
-    <button onClick={() => props.moves.moveForward()}>Move Forward</button>
-    <button onClick={() => props.moves.shootForward()}>Shoot Forward </button>
-    <button onClick={() => props.moves.shootDiagonallyLeft()}>Shoot Diagonally Left</button>
-    <button onClick={() => props.moves.shootDiagonallyRight()}>Shoot Diagonally Right</button>
-    <button onClick={() => props.moves.reload()}>Reload</button>
-  </div>
-)}
+
+        {/* Right: Info Panel */}
+        <div className="flex-1 bg-slate-800 rounded-xl p-4 space-y-4">
+          
+          {/* Placement Phase */}
+          {G.gamePhase === "placement" && (
+            <div>
+              <h3 className="text-lg font-bold text-yellow-400">Place Your Walls</h3>
+              <p>Full: {G.players[props.ctx.currentPlayer]?.wallsToPlace.full} | Half: {G.players[props.ctx.currentPlayer]?.wallsToPlace.half}</p>
+              {selectedTile && (
+                <div className="mt-2 space-y-1">
+                  <p className="text-sm text-slate-400">Placing at ({selectedTile.x}, {selectedTile.y})</p>
+                  <div className="flex gap-1 flex-wrap">
+                    <button className="px-2 py-1 bg-amber-800 text-white text-xs rounded" onClick={() => { props.moves.placeWall(selectedTile.x, selectedTile.y, "horizontal", "full"); setSelectedTile(null); }}>Full Horizontal Wall</button>
+                    <button className="px-2 py-1 bg-amber-800 text-white text-xs rounded" onClick={() => { props.moves.placeWall(selectedTile.x, selectedTile.y, "vertical", "full"); setSelectedTile(null); }}>Full Vertical Wall</button>
+                    <button className="px-2 py-1 bg-amber-400 text-black text-xs rounded" onClick={() => { props.moves.placeWall(selectedTile.x, selectedTile.y, "horizontal", "half"); setSelectedTile(null); }}>Half Horizontal Wall</button>
+                    <button className="px-2 py-1 bg-amber-400 text-black text-xs rounded" onClick={() => { props.moves.placeWall(selectedTile.x, selectedTile.y, "vertical", "half"); setSelectedTile(null); }}>Half Vertical Wall</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Play Phase */}
+          {G.gamePhase === "play" && (
+            <>
+              {/* Timer & Stats */}
+              <div className="flex justify-between items-center">
+                <div>
+                  <p className="text-lg font-bold text-red-400">Player {props.ctx.currentPlayer}</p>
+                  <p className="text-sm text-slate-400">HP: {props.G.players[props.ctx.currentPlayer]?.hp} | AP: {props.G.players[props.ctx.currentPlayer]?.ap}</p>
+                  {props.G.players[props.ctx.currentPlayer]?.armor > 0 && (
+                    <p className="text-sm">Armor: {"🛡️".repeat(props.G.players[props.ctx.currentPlayer]?.armor)}</p>
+                  )}
+                </div>
+                <div className="text-right">
+                  <p className={`text-2xl font-bold ${timeLeft <= 10 ? "text-red-500" : "text-white"}`}>{timeLeft}s</p>
+                  <p className="text-slate-400 text-sm">{props.G.players[props.ctx.currentPlayer]?.facing}</p>
+                </div>
+              </div>
+
+              {/* Bullets */}
+              <div>
+                <p className="text-sm text-slate-400 mb-1">Bullets</p>
+                <div className="flex gap-1">
+                  {G.players[props.ctx.currentPlayer]?.bullets.map((b, i) => (
+                    <span key={i} className="text-lg">
+                      {b === "Normal" ? "🔵" : b === "Piercing" ? "🔴" : b === "Point-Blank" ? "🟡" : b === "Disarming" ? "🟢" : b === "Shattering" ? "🔨" : b === "Vampire" ? "🩸" : b === "Backstab" ? "🗡️" : b === "Heavy" ? "💪" : b === "Boom" ? "💥" : b === "Combo" ? "🔗" : b === "Remove" ? "❌" : "⚪"}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              {/* Hand */}
+              <div>
+                <p className="text-sm text-slate-400 mb-1">Hand</p>
+                <div className="flex gap-2 flex-wrap">
+                  {props.G.players[props.ctx.currentPlayer]?.hand.map((cardId, index) => {
+                    const card = G.allCards[cardId];
+                    return (
+                      <button
+                        key={index}
+                        onClick={() => {
+                          if (card && ["Warp", "Break", "Build"].includes(card.name)) {
+                            setPendingCard({ cardIndex: index, cardName: card.name });
+                          } else {
+                            props.moves.playCard(index);
+                          }
+                        }}
+                        className={`px-3 py-2 rounded-lg text-left text-xs transition hover:scale-105
+                          ${pendingCard?.cardIndex === index ? "ring-2 ring-yellow-400" : ""}
+                          ${card?.type === "Movement" ? "bg-blue-600" : card?.type === "Combat" ? "bg-red-600" : card?.type === "Utility" ? "bg-green-600" : card?.type === "Bullet" ? "bg-purple-600" : "bg-slate-600"}
+                        `}
+                      >
+                        <div className="font-bold">{card?.name}</div>
+                        <div className="text-[10px] opacity-75">{card?.cost} AP</div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="grid grid-cols-4 gap-1">
+                <button className="col-span-2 px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded text-sm" onClick={() => props.moves.turnHead("N")}>↑ N</button>
+                <button className="px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded text-sm" onClick={() => props.moves.turnHead("E")}>→ E</button>
+                <button className="px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded text-sm" onClick={() => props.moves.turnHead("W")}>← W</button>
+                <button className="col-span-3 px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded text-sm" onClick={() => props.moves.turnHead("S")}>↓ S</button>
+                <button className="px-3 py-2 bg-emerald-700 hover:bg-emerald-600 rounded text-sm" onClick={() => props.moves.moveForward()}>Move</button>
+                <button className="px-3 py-2 bg-red-700 hover:bg-red-600 rounded text-sm" onClick={() => props.moves.shootForward()}>Shoot</button>
+                <button className="px-3 py-2 bg-red-800 hover:bg-red-700 rounded text-sm" onClick={() => props.moves.shootDiagonallyLeft()}>↖</button>
+                <button className="px-3 py-2 bg-red-800 hover:bg-red-700 rounded text-sm" onClick={() => props.moves.shootDiagonallyRight()}>↗</button>
+                <button className="px-3 py-2 bg-yellow-700 hover:bg-yellow-600 rounded text-sm" onClick={() => props.moves.reload()}>Reload</button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
     </div>
   );
-}
-function GamePage() {
-    return <App />;
 }
 
 const App = Client({
@@ -837,5 +876,18 @@ const App = Client({
   board: Board,
   numPlayers: 3,
 });
+
+function GamePage() {
+  const [searchParams] = useSearchParams();
+  const playerCount = parseInt(searchParams.get("players") || "3");
+
+  const GameClient = Client({
+    game: DesertRoyale,
+    board: Board,
+    numPlayers: playerCount,
+  })
+
+  return <GameClient />;
+}
 
 export default GamePage;
