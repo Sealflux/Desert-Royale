@@ -21,7 +21,7 @@ function Home() {
         onClick={() => navigate("/lobby")}
         className="px-10 py-3 text-lg border-2 border-red-500 text-red-500 rounded-lg hover:bg-red-500 hover:text-white transition"
       >
-        Join Game
+        Join Game(This is a temporary button for testing, has not yet been implemented)
       </button>
     </div>
   );

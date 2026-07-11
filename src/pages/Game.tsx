@@ -84,7 +84,7 @@ const DesertRoyale = {
       { id: "Warp", name: "Warp", type: "Movement", effect: "Teleport to any unoccupied space on the board", cost: 2 },
       // Combat
       { id: "Scope", name: "Scope", type: "Combat", effect: "Increase range by 2 for this turn", cost: 1 },
-      { id: "Shove", name: "Shove", type: "Combat", effect: "Push an adjacent player 1 space in the direction you are facing.(Can trigger wall slam damage)", cost: 1 },
+      { id: "Shove", name: "Shove", type: "Combat", effect: "Push an adjacent player 4 space in the direction you are facing.(Can trigger wall slam damage)", cost: 1 },
       { id: "Telekinesis", name: "Telekinesis", type: "Combat", effect: "Push any player 1 space in any direction(Can trigger wall slam damage)", cost: 2 },
       { id: "Mine", name: "Mine", type: "Combat", effect: "Place a mine on an adjacent space. Must be triggered by 'Detonate'", cost: 1 },
       { id: "Detonate", name: "Detonate", type: "Combat", effect: "Detonate any mine on the board. A cross shaped area of effect will damage any player in the area for 1 damage", cost: 1},
@@ -107,9 +107,7 @@ const DesertRoyale = {
       { id: "Vampire", name: "Vampire", type: "Bullet", effect: "Reload a vampire bullet. Vampire bullets heal the attacker for 1 HP after dealing damage.", cost: 2},
     ];
     for (const card of deckList) {
-      for (let i = 0; i< (ctx.numPlayers*2 +1); i++) {
-        deck.push({id: card.id+i, name: card.name, type: card.type, effect: card.effect, cost: card.cost})
-      };
+      for (let i = 0; i< (ctx.numPlayers*2 +1); i++) deck.push({id: card.id+i, name: card.name, type: card.type, effect: card.effect, cost: card.cost});
   }
     for (let i = deck.length - 1; i>0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
@@ -118,7 +116,7 @@ const DesertRoyale = {
     const allCards: Record<string, Card> = {};
     deck.forEach(card => {
       allCards[card.id] = card;
-    })
+    });
     return { boardSize: Object.keys(players).length + 5, players, walls: [], gamePhase: "placement", deck, discard: [], allCards };
   },
   moves: {
@@ -148,12 +146,8 @@ const DesertRoyale = {
     if (newX < 0 || newX >= G.boardSize || newY < 0 || newY >= G.boardSize) {
       return;
       }
-    const occupied = Object.keys(G.players).some((id) => {
-    const p = G.players[id];
-    return id !== ctx.currentPlayer && !p.dead && p.x === newX && p.y === newY;});
-    if (occupied) {
-      return; 
-      }
+    const occupied = Object.values(G.players).some((player:any) => player.x === newX && player.y === newY && !player.dead);
+    if (occupied) return;
     let wallX: number;
     let wallY: number;
     let wallDirection: "horizontal" | "vertical";
@@ -177,7 +171,7 @@ const DesertRoyale = {
     }
 
     const wallBlocking = G.walls.some(
-      (w) => w.x === wallX && w.y === wallY && w.direction === wallDirection
+      (wall: any) => wall.x === wallX && wall.y === wallY && wall.direction === wallDirection
     );
 
     if (wallBlocking) {
@@ -198,21 +192,21 @@ const DesertRoyale = {
   const dx = player.facing === "E" ? 1 : player.facing === "W" ? -1 : 0;
   const dy = player.facing === "S" ? 1 : player.facing === "N" ? -1 : 0;
   for (let i = 1; i <= player.range; i++) {
-    const tx = player.x + dx * i;
-    const ty = player.y + dy * i;
-  if (tx < 0 || tx >= boardSize || ty < 0 || ty >= boardSize) break;
+    const targetx = player.x + dx * i;
+    const targety = player.y + dy * i;
+  if (targetx < 0 || targetx >= boardSize || targety < 0 || targety >= boardSize) break;
   const bulletType = player.bullets[player.bullets.length - 1];
   if (bulletType === "Point-Blank" && (i > 1)) break; // Out of range for point-blank bullets
-  const wallBlockingShot = bulletType === "Piercing" ? false : G.walls.some((w) => {
-  if (w.type === "half") return false; 
-  if (w.direction === "vertical") {
-    return w.x === tx - 1 && w.y === ty;
+  const wallBlockingShot = bulletType === "Piercing" ? false : G.walls.some((wall: any) => {
+  if (wall.type === "half") return false; 
+  if (wall.direction === "vertical") {
+    return wall.x === targetx - 1 && wall.y === targety;
   } else {
-    return w.x === tx && w.y === ty - 1;}});
+    return wall.x === targetx && wall.y === targety - 1;}});
   if (wallBlockingShot) break;
-    const target = Object.entries(G.players).find(([id, p]) => {
-    const otherPlayer = p as PlayerState;
-    return id !== ctx.currentPlayer && !otherPlayer.dead && otherPlayer.x === tx && otherPlayer.y === ty;});
+    const target = Object.entries(G.players).find(([id, player]) => {
+    const otherPlayer = player as PlayerState;
+    return id !== ctx.currentPlayer && !otherPlayer.dead && otherPlayer.x === targetx && otherPlayer.y === targety;});
     if (target) {
       const targetPlayer = target[1] as PlayerState;
       if (bulletType === "Disarming") {
@@ -276,23 +270,23 @@ const DesertRoyale = {
     } else if (facing === "W") {
       dx = -1; dy = 1; // SW
     }
-    const tx = player.x + dx;
-    const ty = player.y + dy;
-    if (tx < 0 || tx >= G.boardSize || ty < 0 || ty >= G.boardSize) return;
+    const targetx = player.x + dx;
+    const targety = player.y + dy;
+    if (targetx < 0 || targetx >= G.boardSize || targety < 0 || targety >= G.boardSize) return;
     const bulletType = player.bullets[player.bullets.length - 1];
-    const wallBlockingShot = bulletType === "Piercing" ? false : G.walls.some((w) => {
-      if (w.type === "half") return false;
-      if (w.direction === "vertical") {
-        return w.x === Math.min(player.x, tx) && w.y === player.y;
+    const wallBlockingShot = bulletType === "Piercing" ? false : G.walls.some((wall: any) => {
+      if (wall.type === "half") return false;
+      if (wall.direction === "vertical") {
+        return wall.x === Math.min(player.x, targetx) && wall.y === player.y;
       } else {
-        return w.x === player.x && w.y === Math.min(player.y, ty);
+        return wall.x === player.x && wall.y === Math.min(player.y, targety);
       }
     });
     if (wallBlockingShot) return;
 
-    const target = Object.entries(G.players).find(([id, p]) => {
-      const otherPlayer = p as PlayerState;
-      return id !== ctx.currentPlayer && otherPlayer.x === tx && otherPlayer.y === ty;
+    const target = Object.entries(G.players).find(([id, player]) => {
+      const otherPlayer = player as PlayerState;
+      return id !== ctx.currentPlayer && otherPlayer.x === targetx && otherPlayer.y === targety;
     })
     if (target) {
       const targetPlayer = target[1] as PlayerState;
@@ -354,24 +348,24 @@ const DesertRoyale = {
     } else if (facing === "W") {
       dx = -1; dy = -1; // NW
     }
-    const tx = player.x + dx;
-    const ty = player.y + dy;
-    if (tx < 0 || tx >= G.boardSize || ty < 0 || ty >= G.boardSize) return;
+    const targetx = player.x + dx;
+    const targety = player.y + dy;
+    if (targetx < 0 || targetx >= G.boardSize || targety < 0 || targety >= G.boardSize) return;
     const bulletType = player.bullets[player.bullets.length - 1];
-    const wallBlockingShot = bulletType === "Piercing" ? false : G.walls.some((w) => {
-      if (w.type === "half") return false;
-      if (w.direction === "vertical") {
-        return w.x === Math.min(player.x, tx) && w.y === player.y;
+    const wallBlockingShot = bulletType === "Piercing" ? false : G.walls.some((wall: any) => {
+      if (wall.type === "half") return false;
+      if (wall.direction === "vertical") {
+        return wall.x === Math.min(player.x, targetx) && wall.y === player.y;
       } else {
-        return w.x === player.x && w.y === Math.min(player.y, ty);
+        return wall.x === player.x && wall.y === Math.min(player.y, targety);
       }
 
     },);
     if (wallBlockingShot) return;
 
-    const target = Object.entries(G.players).find(([id, p]) => {
-      const otherPlayer = p as PlayerState;
-      return id !== ctx.currentPlayer && !otherPlayer.dead && otherPlayer.x === tx && otherPlayer.y === ty;
+    const target = Object.entries(G.players).find(([id, player]) => {
+      const otherPlayer = player as PlayerState;
+      return id !== ctx.currentPlayer && !otherPlayer.dead && otherPlayer.x === targetx && otherPlayer.y === targety;
     });
     if (target) {
       const targetPlayer = target[1] as PlayerState;
@@ -403,8 +397,8 @@ const DesertRoyale = {
       if (targetPlayer.hp <= 0) {
         targetPlayer.dead = true;
       }
-      const allDead = Object.entries(G.players).every(([id, p]) => {
-        const otherPlayer = p as PlayerState;
+      const allDead = Object.entries(G.players).every(([id, player]) => {
+        const otherPlayer = player as PlayerState;
         return id === ctx.currentPlayer || otherPlayer.dead;
       });
       if (allDead) {
@@ -499,7 +493,7 @@ const DesertRoyale = {
               }
               break;
             case "Warp":
-              // Implement warp effect
+              // Implement warp effect, connect to the warp moves
               break;
             default:
               break;
@@ -512,7 +506,7 @@ const DesertRoyale = {
               player.range += 2;
               break;
             case "Shove":
-              // Implement shove effect
+              // Implement shove effect, connect to the shove move
               break;
             case "Telekinesis":
               // Implement telekinesis effect
@@ -591,25 +585,24 @@ const DesertRoyale = {
       }
       if (player.ap === 0) events.endTurn();
   },
-  warp: ({ G, ctx, events }, cardIndex: number, tx: number, ty: number) => { // tx and ty are the target coords
+  warp: ({ G, ctx, events }, cardIndex: number, targetx: number, targety: number) => { // targetx and targety are the target coords
     const player = G.players[ctx.currentPlayer];
     if (player.ap < 2) return;
-    if (tx < 0 || tx >= G.boardSize || ty < 0 || ty >= G.boardSize) return;
-    const occupied = Object.values(G.players).some((p:any) => !p.dead && p.x === tx && p.y === ty);
+    if (targetx < 0 || targetx >= G.boardSize || targety < 0 || targety >= G.boardSize) return;
+    const occupied = Object.values(G.players).some((player:any) => !player.dead && player.x === targetx && player.y === targety);
     if (occupied) return;
     const cardId = player.hand[cardIndex];
     const card = G.allCards[cardId];
     if (!card || card.name !== "Warp") return;
     player.hand.splice(cardIndex, 1);
     G.discard.push(card);
-    player.x = tx;
-    player.y = ty;
-    player.ap -= card.cost;
+    player.x = targetx;
+    player.y = targety;
     events.endTurn(); // Warp costs 2 AP, so we don't need to check if AP is 0, we just end the turn after warping
   },
   breakWall: ({ G, ctx, events}, cardIndex: number, x: number, y: number) => {
     const player = G.players[ctx.currentPlayer];
-    const wallIndex = G.walls.findIndex(w => w.x === x && w.y === y);
+    const wallIndex = G.walls.findIndex((wall: any) => wall.x === x && wall.y === y);
     if (wallIndex === -1) return;
     const cardId = player.hand[cardIndex];
     const card = G.allCards[cardId];
@@ -621,7 +614,84 @@ const DesertRoyale = {
   },
   buildWall: ({ G, ctx, events}, cardIndex: number, x: number, y: number) => {
     const player = G.players[ctx.currentPlayer];
-  }
+    
+    const alreadyExists = G.walls.some((wall: any) => wall.x === x && wall.y === y);
+
+    if (alreadyExists) return;
+    
+    const cardId = player.hand[cardIndex];
+    const card = G.allCards[cardId];
+    if (!card || card.name !== "Build") return;
+    player.hand.splice(cardIndex, 1);
+    G.discard.push(card);
+    G.walls.push({x, y, direction: "horizontal", type: "full"}); // I'll make it so the player can choose in a future update
+    if (player.ap === 0) events.endTurn();
+  },
+  shove: ({ G, ctx, events}, cardIndex: number) => {
+    const player = G.players[ctx.currentPlayer];
+    const direction = player.facing;
+
+    const cardId = player.hand[cardIndex];
+    const card = G.allCards[cardId];
+    if (!card || card.name !== "Shove") return;
+    player.hand.splice(cardIndex, 1);
+    G.discard.push(card);
+
+    let targetX = player.x;
+    let targetY = player.y;
+
+    if (direction === "N") targetY -= 1;
+    else if (direction === "E") targetX += 1;
+    else if (direction === "S") targetY += 1;
+    else if (direction === "W") targetX -= 1;
+
+    const target = Object.entries(G.players).find(([id, p]) => {
+      const otherPlayer = p as PlayerState;
+      return id !== ctx.currentPlayer && !otherPlayer.dead && otherPlayer.x === targetX && otherPlayer.y === targetY;
+    })
+    if (!target) return;
+    const targetPlayer = target[1] as PlayerState;
+
+    for (let step= 0; step < 4; step++) {
+      let newX = targetPlayer.x;
+      let newY = targetPlayer.y;
+
+      if (direction === "N") newY -= 1;
+      else if (direction === "E") newX += 1;
+      else if (direction === "S") newY += 1;
+      else if (direction === "W") newX -= 1;
+
+      if (newX < 0 || newX >= G.boardSize || newY < 0 || newY >= G.boardSize) break;
+
+      const occupied = Object.entries(G.players).some((p:any) => !p.dead && p.x === newX && p.y === newY);
+      if (occupied) break;
+
+      const wallBlocking = G.walls.some((wall: any) => {
+        if (direction === "N") return wall.x === targetPlayer.x && wall.y === targetPlayer.y - 1 && wall.direction === "horizontal";
+        else if (direction === "E") return wall.x === targetPlayer.x && wall.y === targetPlayer.y && wall.direction === "vertical";
+        else if (direction === "S") return wall.x === targetPlayer.x && wall.y === targetPlayer.y + 1 && wall.direction === "horizontal";
+        else if (direction === "W") return wall.x === targetPlayer.x - 1 && wall.y === targetPlayer.y && wall.direction === "vertical";
+        else return false;
+      });
+      if (wallBlocking) break;
+      targetPlayer.x = newX;
+      targetPlayer.y = newY;
+    }
+    targetPlayer.hp -= 1;
+    if (targetPlayer.hp <= 0) targetPlayer.dead = true;
+    if (player.ap === 0) events.endTurn();
+  },
+  sprint: ({ G, ctx, events}, cardIndex: number) => {
+    const player = G.players[ctx.currentPlayer];
+    const direction = player.facing;
+    const cardId = player.hand[cardIndex];
+    const card = G.allCards[cardId];
+    if (!card || card.name !== "Sprint") return;
+    player.hand.splice(cardIndex, 1);
+    G.discard.push(card);
+    // Do tomorrow
+    if (player.ap === 0) events.endTurn();
+  },
 },
   turn: {
     onBegin: ({G, ctx, events}) => {
@@ -870,12 +940,6 @@ function Board(props: any) {
     </div>
   );
 }
-
-const App = Client({
-  game: DesertRoyale,
-  board: Board,
-  numPlayers: 3,
-});
 
 function GamePage() {
   const [searchParams] = useSearchParams();
