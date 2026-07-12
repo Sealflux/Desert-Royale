@@ -540,21 +540,11 @@ const DesertRoyale = {
             case "Scope":
               player.range += 2;
               break;
-            case "Telekinesis":
-              // Implement telekinesis effect
-              break;
-            case "Mine":
-              // Implement mine effect
-              break;
-            case "Detonate":
-              // Implement detonate effect
-              break;
             default:
               break;
           }
           break;
         case "Utility":
-          // Implement utility card effects
           switch (card.name) {
             case "Heal":
               player.hp = Math.min(player.hp + 1, 3); // If they heal at max hp, they just stay at max hp
@@ -730,29 +720,86 @@ const DesertRoyale = {
     if (player.ap === 0) events.endTurn();
  },
  detonateMine: ({ G, ctx, events}, cardIndex: number, x: number, y: number) => {
-  const player = G.players[ctx.currentPlayer];
-  const mineIndex = G.mines.findIndex(mine => mine.x === x && mine.y === y);
-  if (mineIndex === -1) return;
+    const player = G.players[ctx.currentPlayer];
+    const mineIndex = G.mines.findIndex((mine: any) => mine.x === x && mine.y === y);
+    if (mineIndex === -1) return;
 
-  const cardId = player.hand[cardIndex];
-  const card = G.allCards[cardId];
-  if (!card || card.name !== "Detonate") return;
+    const cardId = player.hand[cardIndex];
+    const card = G.allCards[cardId];
+    if (!card || card.name !== "Detonate") return;
+    player.hand.splice(cardIndex, 1);
+    G.discard.push(card);
 
-  player.hand.splice(cardIndex, 1);
-  G.discard.push(card);
-
-  const mine = G.mines[mineIndex];
-  G.mines.splice(mineIndex, 1);
-
-  const crossOffsets = [
-    { dx: 0, dy: 0 }, // The mine itself
-    { dx: 1, dy: 0 }, // Right
-    { dx: -1, dy: 0 }, // Left
-    { dx: 0, dy: 1 }, // Down
-    { dx: 0, dy: -1 }, // Up
-  ];
+    const mine = G.mines[mineIndex];
+    G.mines.splice(mineIndex, 1);
+    const crossOffsets = [
+      [0, 0],
+      [1, 0],
+      [0, 1],
+      [-1, 0],
+      [0, -1]];
+    
+    for (const [dx, dy] of crossOffsets) {
+      const targetx = mine.x + dx;
+      const targety = mine.y + dy;
+      
+      Object.values(G.players).forEach((player: any) => {
+        if (!player.dead && player.x === targetx && player.y === targety) {
+          player.hp -= 1;
+          if (player.hp <= 0) {
+            player.dead = true;
+          }
+        }
+      })
+      G.walls = G.walls.filter((wall: any) => !(wall.x === targetx && wall.y === targety)); // Mine eats walls
+    }
+    const allDead = Object.entries(G.players).every(([id, player]) => {
+      const otherPlayer = player as PlayerState;
+      return id === ctx.currentPlayer || otherPlayer.dead;
+    });
+    if (allDead) events.endGame({ winner: ctx.currentPlayer });
+    if (player.ap === 0) events.endTurn();
  },
- // I'll do this tomorrow
+ Telekinesis: ({ G, ctx, events}, cardIndex: number, x: number, y: number) => {
+    const player = G.players[ctx.currentPlayer];
+    const target = Object.entries(G.players).find(([id, p]) => {
+      const otherPlayer = p as PlayerState; 
+      return id !== ctx.currentPlayer && !otherPlayer.dead && otherPlayer.x === x && otherPlayer.y === y
+    }
+  );
+    if (!target) return;
+    const targetPlayer = target[1] as PlayerState;
+    const cardId = player.hand[cardIndex];
+    const card = G.allCards[cardId];
+    if (!card || card.name !== "Telekinesis") return;
+    player.hand.splice(cardIndex, 1);
+    G.discard.push(card);
+
+    const dx = targetPlayer.x - player.x;
+    const dy = targetPlayer.y - player.y;
+    const pushX = targetPlayer.x + (dx !== 0 ? (dx > 0 ? 1 : -1) : 0);
+    const pushY = targetPlayer.y + (dy !== 0 ? (dy > 0 ? 1 : -1) : 0);
+    if (pushX < 0 || pushX >= G.boardSize || pushY < 0 || pushY >= G.boardSize) {
+      targetPlayer.hp -= 1;
+    }
+    else {
+      const occupied = Object.values(G.players).some((player:any) => !player.dead && player.x === pushX && player.y === pushY);
+      if (occupied) {
+        targetPlayer.hp -= 1;
+      }
+      else {
+        targetPlayer.x = pushX;
+        targetPlayer.y = pushY;
+      }
+    }
+    if (targetPlayer.hp <= 0) targetPlayer.dead = true;
+    const allDead = Object.entries(G.players).every(([id, player]) => {
+      const otherPlayer = player as PlayerState;
+      return id === ctx.currentPlayer || otherPlayer.dead;
+    });
+    if (allDead) events.endGame({ winner: ctx.currentPlayer });
+    if (player.ap === 0) events.endTurn();
+ }
 },
   turn: {
     onBegin: ({G, ctx, events}) => {
@@ -857,6 +904,9 @@ function Board(props: any) {
               if (pendingCard.cardName === "Warp") props.moves.warp(pendingCard.cardIndex, col, row);
               else if (pendingCard.cardName === "Break") props.moves.breakWall(pendingCard.cardIndex, col, row);
               else if (pendingCard.cardName === "Build") props.moves.buildWall(pendingCard.cardIndex, col, row);
+              else if (pendingCard.cardName === "Mine") props.moves.placeMine(pendingCard.cardIndex, col, row);
+              else if (pendingCard.cardName === "Detonate") props.moves.detonateMine(pendingCard.cardIndex, col, row);
+              else if (pendingCard.cardName === "Telekinesis") props.moves.Telekinesis(pendingCard.cardIndex, col, row);
               setPendingCard(null);
             } else {
               setSelectedTile({ x: col, y: row });
@@ -872,15 +922,12 @@ function Board(props: any) {
             ${(hoveredTile?.x === col && hoveredTile?.y === row) || (selectedTile?.x === col && selectedTile?.y === row) ? "border-r-4 border-b-4 border-r-yellow-400 border-b-yellow-400 border-dashed" : ""}
           `}
         >
-          {playerHere ? (
-            <>
-              <span className="text-white">P{playerID} {facingArrows[(playerHere[1] as PlayerState).facing]}</span>
-              <span className="text-red-400 text-xs">
-                {"❤️".repeat((playerHere[1] as PlayerState).hp)}
-              </span>
-              {(playerHere[1] as PlayerState).armor > 0 && <span className="text-xs">🛡️</span>}
-            </>
-          ) : null}
+          {playerHere ? (<>
+            <span className="text-white">P{playerID} {facingArrows[(playerHere[1] as PlayerState).facing]}</span>
+            <span className="text-red-400 text-xs"> {"❤️".repeat((playerHere[1] as PlayerState).hp)}</span>
+            {(playerHere[1] as PlayerState).armor > 0 && <span className="text-xs">🛡️</span>}</>) : null}
+            {G.mines.some(mine => mine.x === col && mine.y === row) && (
+            <span className="text-xs">💣</span>)}
         </div>
       );
     }
@@ -966,7 +1013,7 @@ function Board(props: any) {
                           if (card && card.name === "Shove") {
                             props.moves.shove(index);
                           }
-                          else if (card && ["Warp", "Break", "Build"].includes(card.name)) {
+                          else if (card && ["Warp", "Break", "Build", "Mine", "Detonate", "Telekinesis"].includes(card.name)) {
                             setPendingCard({ cardIndex: index, cardName: card.name });
                           }
                           else {
