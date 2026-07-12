@@ -26,12 +26,18 @@ interface GameState {
   deck: Card[];
   discard: Card[];
   allCards: Record<string, Card>;
+  mines: Mine[];
 }
 interface Wall {
   x: number;
   y: number;
   direction: "horizontal" | "vertical";
   type: "full" | "half";
+}
+
+interface Mine {
+  x: number;
+  y: number;
 }
 
 interface Card {
@@ -117,7 +123,7 @@ const DesertRoyale = {
     deck.forEach(card => {
       allCards[card.id] = card;
     });
-    return { boardSize: Object.keys(players).length + 5, players, walls: [], gamePhase: "placement", deck, discard: [], allCards };
+    return { boardSize: Object.keys(players).length + 5, players, walls: [], gamePhase: "placement", deck, discard: [], allCards, mines: [] };
   },
   moves: {
     turnHead: ({ G, ctx, events }, direction) => {
@@ -460,11 +466,43 @@ const DesertRoyale = {
       switch (card.type) {
         case "Movement":
           switch (card.name) {
-            case "Sprint":
-              // Implement sprint effect
-              break;
+            case "Sprint": {
+          const direction = player.facing;
+          let nx = player.x, ny = player.y;
+          if (direction === "N") ny--;
+          else if (direction === "E") nx++;
+          else if (direction === "S") ny++;
+          else if (direction === "W") nx--;
+          if (nx >= 0 && nx < G.boardSize && ny >= 0 && ny < G.boardSize) {
+            const occ = Object.values(G.players).some((player: any) => !player.dead && player.x === nx && player.y === ny);
+            const wallBlock = G.walls.some((wall: any) => {
+              if (direction === "N") return wall.x === player.x && wall.y === player.y - 1 && wall.direction === "horizontal";
+              if (direction === "S") return wall.x === player.x && wall.y === player.y && wall.direction === "horizontal";
+              if (direction === "E") return wall.x === player.x && wall.y === player.y && wall.direction === "vertical";
+              if (direction === "W") return wall.x === player.x - 1 && wall.y === player.y && wall.direction === "vertical";
+              return false;
+            });
+            if (!occ && !wallBlock) {
+              player.x = nx;
+              player.y = ny;
+            }
+          }
+          break;
+        }
             case "Leap":
-              // Implement leap effect
+              const direction = player.facing;
+              let lx = player.x, ly = player.y;
+              if (direction == "N") ly -= 2;
+              else if (direction == "S") ly += 2;
+              else if (direction == "E") lx += 2;
+              else if (direction == "W") lx -= 2;
+
+              if (lx >= 0 && lx < G.boardSize && ly >= 0 && ly < G.boardSize) {
+                const occupied = Object.values(G.players).some((player:any) => !player.dead && player.x === lx && player.y === ly);
+              if (!occupied) {
+                player.x = lx;
+                player.y = ly;
+              }}
               break;
             case "Dash":
               for (let step = 0; step < 2; step++) {
@@ -480,20 +518,17 @@ const DesertRoyale = {
                   (p:any) => p.x === nx && p.y === ny && !p.dead
                 );
                 if (occupied) break;
-                const wallBlocking = G.walls.some((w) => {
-                  if (direction === "N") return w.x === player.x && w.y === player.y - 1 && w.direction === "horizontal";
-                  if (direction === "E") return w.x === player.x && w.y === player.y && w.direction === "vertical";
-                  if (direction === "S") return w.x === player.x && w.y === player.y && w.direction === "horizontal";
-                  if (direction === "W") return w.x === player.x - 1 && w.y === player.y && w.direction === "vertical";
+                const wallBlocking = G.walls.some((wall) => {
+                  if (direction === "N") return wall.x === player.x && wall.y === player.y - 1 && wall.direction === "horizontal";
+                  if (direction === "E") return wall.x === player.x && wall.y === player.y && wall.direction === "vertical";
+                  if (direction === "S") return wall.x === player.x && wall.y === player.y && wall.direction === "horizontal";
+                  if (direction === "W") return wall.x === player.x - 1 && wall.y === player.y && wall.direction === "vertical";
                   return false;
                 });
                 if (wallBlocking) break;
                 player.x = nx;
                 player.y = ny;
               }
-              break;
-            case "Warp":
-              // Implement warp effect, connect to the warp moves
               break;
             default:
               break;
@@ -504,9 +539,6 @@ const DesertRoyale = {
           switch (card.name) {
             case "Scope":
               player.range += 2;
-              break;
-            case "Shove":
-              // Implement shove effect, connect to the shove move
               break;
             case "Telekinesis":
               // Implement telekinesis effect
@@ -527,18 +559,12 @@ const DesertRoyale = {
             case "Heal":
               player.hp = Math.min(player.hp + 1, 3); // If they heal at max hp, they just stay at max hp
               break;
-              case "Break":
-                // Implement break effect
-                break;
-              case "Build":
-                // Implement build effect
-                break;
-                case "Conserve":
-                  player.extraAP += 1;
-                  break;
-                case "Armor":
-                  player.armor += 1;
-                  break;
+            case "Conserve":
+              player.extraAP += 1;
+              break;
+            case "Armor":
+              player.armor += 1;
+              break;
                 default:
                   break;
           }
@@ -598,11 +624,12 @@ const DesertRoyale = {
     G.discard.push(card);
     player.x = targetx;
     player.y = targety;
-    events.endTurn(); // Warp costs 2 AP, so we don't need to check if AP is 0, we just end the turn after warping
+    player.ap -= card.cost;
+    if (player.ap === 0) events.endTurn();
   },
   breakWall: ({ G, ctx, events}, cardIndex: number, x: number, y: number) => {
     const player = G.players[ctx.currentPlayer];
-    const wallIndex = G.walls.findIndex((wall: any) => wall.x === x && wall.y === y);
+    const wallIndex = G.walls.findIndex((wall: any) => (wall.x === x && wall.y === y) || (wall.x === x-1 && wall.y === y && wall.direction === "vertical") || (wall.x === x && wall.y === y-1 && wall.direction === "horizontal"));
     if (wallIndex === -1) return;
     const cardId = player.hand[cardIndex];
     const card = G.allCards[cardId];
@@ -681,17 +708,51 @@ const DesertRoyale = {
     if (targetPlayer.hp <= 0) targetPlayer.dead = true;
     if (player.ap === 0) events.endTurn();
   },
-  sprint: ({ G, ctx, events}, cardIndex: number) => {
+  placeMine: ({ G, ctx, events}, cardIndex: number, x: number, y: number) => {
     const player = G.players[ctx.currentPlayer];
-    const direction = player.facing;
+
+    const dx = Math.abs(player.x - x);
+    const dy = Math.abs(player.y - y);
+    if ((dx + dy) !== 1) return; // If true, then the mine isn't adjacent to the player
+
+    const MineExists = G.mines.some(mine => mine.x === x && mine.y === y);
+    if (MineExists) return; // I also need to make a UI for the mines
+
+    const occupied = Object.values(G.players).some((player:any) => !player.dead && player.x === x && player.y === y);
+    if (occupied) return; // If true, then there's a player on that tile
+
     const cardId = player.hand[cardIndex];
     const card = G.allCards[cardId];
-    if (!card || card.name !== "Sprint") return;
+    if (!card || card.name !== "Mine") return;
     player.hand.splice(cardIndex, 1);
     G.discard.push(card);
-    // Do tomorrow
+    G.mines.push({x,y});
     if (player.ap === 0) events.endTurn();
-  },
+ },
+ detonateMine: ({ G, ctx, events}, cardIndex: number, x: number, y: number) => {
+  const player = G.players[ctx.currentPlayer];
+  const mineIndex = G.mines.findIndex(mine => mine.x === x && mine.y === y);
+  if (mineIndex === -1) return;
+
+  const cardId = player.hand[cardIndex];
+  const card = G.allCards[cardId];
+  if (!card || card.name !== "Detonate") return;
+
+  player.hand.splice(cardIndex, 1);
+  G.discard.push(card);
+
+  const mine = G.mines[mineIndex];
+  G.mines.splice(mineIndex, 1);
+
+  const crossOffsets = [
+    { dx: 0, dy: 0 }, // The mine itself
+    { dx: 1, dy: 0 }, // Right
+    { dx: -1, dy: 0 }, // Left
+    { dx: 0, dy: 1 }, // Down
+    { dx: 0, dy: -1 }, // Up
+  ];
+ },
+ // I'll do this tomorrow
 },
   turn: {
     onBegin: ({G, ctx, events}) => {
@@ -901,10 +962,14 @@ function Board(props: any) {
                     return (
                       <button
                         key={index}
-                        onClick={() => {
-                          if (card && ["Warp", "Break", "Build"].includes(card.name)) {
+                        onClick = {() => {
+                          if (card && card.name === "Shove") {
+                            props.moves.shove(index);
+                          }
+                          else if (card && ["Warp", "Break", "Build"].includes(card.name)) {
                             setPendingCard({ cardIndex: index, cardName: card.name });
-                          } else {
+                          }
+                          else {
                             props.moves.playCard(index);
                           }
                         }}
