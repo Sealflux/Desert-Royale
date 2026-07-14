@@ -7,7 +7,7 @@ function Home() {
     <div className="min-h-screen bg-gradient-to-br from-orange-600 via-slate-300 to-red-600 flex flex-col items-center justify-center font-sans">
       <h1 className="text-6xl font-bold text-red-500 mb-2">Desert Royale</h1>
       <p className="text-lg text-red-700 mb-10">
-        A turn-based survival board game
+        A turn-based board game where players compete to be the last one standing in a desert wasteland.
       </p>
       
       <button
