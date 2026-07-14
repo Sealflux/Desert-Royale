@@ -1,67 +1,48 @@
-# Desert-Royale
+# Desert Royale
 
-## The idea
+[![Deployed on Vercel](https://img.shields.io/badge/Play_Live-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://desert-royale-kappa.vercel.app/)
 
-Taking my friend's original physical board game, Desert Royale, and building it as a polished, playable digital experience — accessible on both web browsers (as a PWA) and mobile devices.
+A turn-based survival board game set in the wild west. Players fight to be the last one standing in a grid-based arena with walls. Players can use special action cards that do various special things.
 
-## What it is
+## Built for Macondo Hack Club — A Digital Adaptation of an original board game by Yacob England (Inspired By Guncho)
 
-Desert Royale is a competitive turn-based board game where 2-6+ players face off on a grid-based arena. Every turn, you have 2 Action Points to spend - turn oyour head, move forward, shoot, reload, or play an Action Card. You win by being the last player with Health Points remaining.
+## Play Now
 
-This project takes the physical board game created by Yacob England and makes it playable anywhere - browser, phone, tablt - with no setup, no cleanup, and no lost pieces.
-
-## Why this matters
-
-My friend created this board game that was genuinely fun that only exists one of one, only my friends and I can enjoy this amazing board game. This project makes it so that everyone can enjoy the board game, making it possible to play from far distances, quick games, no setup or cleanup. Sharing an original game that would have otherwise stayed locked in our friend group.
+**Live Demo** [https://desert-royale-kappa.vercel.app/](https://desert-royale-kappa.vercel.app/)
 
 ## How to Play
 
-Players: 2 minimum, no hard maximum (playtested up to 6 people)  
-Playtime: ~30 minutes  
-Win Condition: Kill everyone else
+- 2-6 Players place walls, and then take turns doing game actions.
+- Each Turn: 2 Action Points which can be alloted to move, turn, shoot, reload, or play cards.
+- Currently 26 Action Cards implemented across four different types (Movement, Combat, Utility, Bullet).
+- Last Player Alive Wins
 
-### Your Turn
+## Tech Stack
 
-You get 2 Action Points (AP) per turn. Each action costs 1 AP:
+- React + TypeScript
+- Boardgame.io(Game Engine)
+- Tailwind CSS
+- Vite
 
-| Action | Effect |
-|--------|--------|
-| Turn | Head Rotate your facing direction (N/E/S/W) |
-| Move | Forward Step 1 tile in the direction you're facing |
-| Shoot | Hit 3 tiles straight ahead or 1 tile diagonally forward (uses 1 bullet) |
-| Reload | Refill your ammo belt up to 3 bullets |
+## Future Plans
 
-Variable Costs:
+- **UI/UX Overhaul** - Currently I don't really like the UI/UX but it's good enough for a first ship. The UI/UX Overhaul will improve the visual design and overall user experience as well as making it more immersive and intuitive.
 
-| Action | Effect |
-|--------|--------|
-| Play Action Card | Use a card from your hand (effects vary) |
+- **Card UI Redesign** - Rework the current card interface to be inspired by Slay the Spire - cleaner layouts, better visual hierarchy, and more satisfying game actions.
 
-After your turn ends (AP = 0 or you pass), draw Action Cards until you have 2 in hand.
+- **Mobile Support** - Optimize/Make the game for mobile devices so you can play with your friends on your phone.
 
-### Health & Elimination
+- **Code Despaghettifying** - Make the codebase more efficient with better maintainability and performance.
 
-- Everyone starts with 3 HP
-- Damage comes from bullets and Action Cardss
-- No natural health regen (unless a card grants it)
-- Hit 0 HP and you're out
+- **Multiple Device Support** - Instead of one device with pass & play, there will be individual players for each phone for a true multiplayer experience.
 
-### The Board
+## Getting Started
 
-- Grid of playable concrete squares on a desert field
-- Each player plaecs 3 walls at game starts
-- Half walls: Block movement, not bullets
-- Full walls: Block both movement and bullets
+```bash
+git clone https://github.com/Sealflux/Desert-Royale.git
+npm install
+npm run dev
 
-### Hidden Information
+## License
 
-- Your hand of 2 Action Cards is private
-- Everything else - Position, Health, Ammo, Facing Direction - is public
-
-## Credits
-
-Game Design: Yacob England - Creator of the original physical board game
-
-Digital Adaptation: Thuan Nguyen - Goated Friend of Yacob, 2026
-
-Built with IDK yet.
+MIT — original game design by Yacob England, used with permission.
