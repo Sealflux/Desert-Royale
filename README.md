@@ -42,7 +42,3 @@ A turn-based survival board game set in the wild west. Players fight to be the l
 git clone https://github.com/Sealflux/Desert-Royale.git
 npm install
 npm run dev
-
-## License
-
-MIT — original game design by Yacob England, used with permission.
