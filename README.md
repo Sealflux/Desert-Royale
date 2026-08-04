@@ -1,6 +1,6 @@
 # Desert Royale
 
-[![Deployed on Vercel](https://img.shields.io/badge/Play_Live-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://desert-royale-6nr1dl79k-iluvseals4.vercel.app/)
+[![Deployed on Vercel](https://img.shields.io/badge/Play_Live-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://desert-royale-kappa.vercel.app/)
 
 A turn-based survival board game set in the wild west. Players fight to be the last one standing in a grid-based arena with walls. Players can use special action cards that do various special things.
 
