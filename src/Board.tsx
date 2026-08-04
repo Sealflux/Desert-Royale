@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import type { GameState, PlayerState } from "./game";
-import {Joyride, useJoyride} from "react-joyride";
+import {useJoyride} from "react-joyride";
 
 
 
@@ -10,7 +10,7 @@ function Board(props: any) {
   const facingArrows: Record<string, string> = {
     N: "↑", E: "→", S: "↓", W: "←",
   };
-  const [wallPreview, setWallPreview] = useState<{ direction: string; type: string } | null>(null);
+  const [wallPreview, setWallPreview] = useState<{ direction: string; type: string } | null>(null); // This is for showing a wall preview under the wall buttons but I haven't implemented that yet.
   const [selectedTile, setSelectedTile] = React.useState<{ x: number, y: number } | null>(null);
   const [hoveredTile, setHoveredTile] = useState<{ x: number; y: number } | null>(null);
   const [pendingCard, setPendingCard] = useState<{ cardIndex: number; cardName: string } | null>(null);
