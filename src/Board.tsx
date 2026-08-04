@@ -18,14 +18,26 @@ function Board(props: any) {
   const [showPassScreen, setShowPassScreen] = useState(true);
   const wallsteps = [
   { content: "This is where you place walls during the placement phase.", target: ".board" },
-  { content: "After you click a tile, click one of these buttons to place a wall!", target: ".placewalls" },
+  { content: "This is where you take actions! You are currently in the wall placement phase.", target: ".showrightside" },
+  { content: "These are the buttons to place walls. Click a tile on the board first and then place a wall.", target: ".showwallbuttons" },
+  { content: "A full wall blocks movement and bullets!", target: ".explainfullwall" },
+  { content: "A half wall blocks movement but not bullets!", target: ".explainhalfwall"},
+  { content: "These are the coordinates of the tile you selected", target: ".showcoords" },
+  { content: "This is your selected tile. The horizontal and vertical walls' preview are on the bottom and right.", target: ".selectedTile"},
   ];
   const playsteps = [
   { content: "These are your stats.", target: ".player-info" },
-  { context: "This is your bullet display.", target : ".bullet-display" },
+  { content: "This is your Health, reach 0 HP and you die.", target: ".player-health" },
+  { content: "This is your Action Points, use them to play cards and take actions. You get set to 2 AP per turn.", target: ".player-ap" },
+  { content: "This is your bullet display. Shooting will deplete 1 bullet.", target : ".bullet-display" },
   { content: "These are your cards.", target: ".hand-section" },
-  { content: "Turn and move here.", target: ".dpad-turn" },
-  { content: "Shoot here.", target: ".dpad-shoot" },
+  { content: "Turn and move here. Each action costs 1 AP.", target: ".dpad-movement" },
+  { content: "Turning a direction that you aren't already facing will cost 1 AP.", target: ".dpad-turn"},
+  { content: "Moving will cost 1 AP.", target: ".dpad-move"},
+  { content: "These are the buttons to shoot. Each shot costs 1 AP.", target: ".dpad-combat" },
+  { content: "These arrows depend on your facing direction on the board. You can shoot forward 3 tiles.", target: ".dpad-shoot" },
+  { content: "You can shoot diagonally left or right, 1 tile away.", target: ".dpad-diagonally" },
+  { content: "Reloading will give you 1 bullet back.", target: ".dpad-reload" },
   ];
   const { controls: wallControls, Tour: WallTour } = useJoyride({
     continuous: true,
@@ -104,7 +116,7 @@ useEffect(() => {
             ${isCurrentPlayer ? "bg-yellow-600 border-yellow-400 border-2" : playerHere ? "bg-blue-700" : "bg-slate-700 hover:bg-slate-600"}
             ${G.walls.some(w => w.x === col - 1 && w.y === row && w.direction === "vertical") ? "border-l-4 " + (G.walls.find(w => w.x === col - 1 && w.y === row && w.direction === "vertical")?.type === "full" ? "border-l-amber-800" : "border-l-amber-400") : ""}
             ${G.walls.some(w => w.x === col && w.y === row - 1 && w.direction === "horizontal") ? "border-t-4 " + (G.walls.find(w => w.x === col && w.y === row - 1 && w.direction === "horizontal")?.type === "full" ? "border-t-amber-800" : "border-t-amber-400") : ""}
-            ${(hoveredTile?.x === col && hoveredTile?.y === row) || (selectedTile?.x === col && selectedTile?.y === row) ? "border-r-4 border-b-4 border-r-yellow-400 border-b-yellow-400 border-dashed" : ""}
+            ${(hoveredTile?.x === col && hoveredTile?.y === row) || (selectedTile?.x === col && selectedTile?.y === row) ? "selectedTile border-r-4 border-b-4 border-r-yellow-400 border-b-yellow-400 border-dashed" : ""}
           `}
         >
           {playerHere ? (<>
@@ -122,17 +134,28 @@ useEffect(() => {
   return (
     <div className="min-h-screen bg-slate-900 text-white p-6 font-sans">
     {WallTour}
+    {PlayTour}
       <div className="flex gap-6 max-w-7xl mx-auto">
         
         {/* Left: Board */}
         <div>
           <h2 className=" text-2xl font-bold text-red-500 mb-4"> Desert Royale
-            <button 
-    onClick={() => wallControls.start()} 
-    className="ml-4 px-3 py-1 text-sm bg-slate-700 hover:bg-slate-600 rounded"
-  >
-    Start Wall Placement Tutorial
-  </button>
+            {G.gamePhase === "placement" && (
+              <button
+                onClick={() => wallControls.start()}
+                className="ml-4 px-3 py-1 text-sm bg-slate-700 hover:bg-slate-600 rounded"
+              >
+                Start Wall Placement Tutorial
+              </button>
+            )}
+            {G.gamePhase === "play" && (
+              <button
+                onClick={() => playControls.start()}
+                className="ml-4 px-3 py-1 text-sm bg-slate-700 hover:bg-slate-600 rounded"
+              >
+                Start Play Phase Tutorial
+              </button>
+            )}
           </h2>
           <div className="board bg-slate-800 p-2 rounded-xl">{grid}</div>
           <p className="mt-2 text-slate-400 text-sm">Phase: {G.gamePhase} | Turn: Player {props.ctx.currentPlayer}</p>
@@ -142,24 +165,22 @@ useEffect(() => {
         </div>
 
         {/* Right: Info Panel */}
-        <div className="flex-1 bg-slate-800 rounded-xl p-4 space-y-4">
+        <div className="showrightside flex-1 bg-slate-800 rounded-xl p-4 space-y-4">
           
           {/* Placement Phase */}
           {G.gamePhase === "placement" && (
-            <div>
-              <h3 className="placewalls text-lg font-bold text-yellow-400">Place Your Walls</h3>
+            <div >
+              <h3 className=" text-lg font-bold text-yellow-400">Place Your Walls</h3>
               <p>Full: {G.players[props.ctx.currentPlayer]?.wallsToPlace.full} | Half: {G.players[props.ctx.currentPlayer]?.wallsToPlace.half}</p>
-              {selectedTile && (
-                <div className="mt-2 space-y-1">
-                  <p className="text-sm text-slate-400">Placing at ({selectedTile.x}, {selectedTile.y})</p>
+                <div className="showwallbuttons mt-2 space-y-1">
+                  <p className="showcoords text-sm text-slate-400">Placing at ({selectedTile?.x | 0}, {selectedTile?.y | 0})</p>
                   <div className="flex gap-1 flex-wrap">
-                    <button className="px-2 py-1 bg-amber-800 text-white text-xs rounded" onClick={() => { props.moves.placeWall(selectedTile.x, selectedTile.y, "horizontal", "full"); setSelectedTile(null); }}>Full Horizontal Wall</button>
+                    <button className="explainfullwall px-2 py-1 bg-amber-800 text-white text-xs rounded" onClick={() => { props.moves.placeWall(selectedTile.x, selectedTile.y, "horizontal", "full"); setSelectedTile(null); }}>Full Horizontal Wall</button>
                     <button className="px-2 py-1 bg-amber-800 text-white text-xs rounded" onClick={() => { props.moves.placeWall(selectedTile.x, selectedTile.y, "vertical", "full"); setSelectedTile(null); }}>Full Vertical Wall</button>
-                    <button className="px-2 py-1 bg-amber-400 text-black text-xs rounded" onClick={() => { props.moves.placeWall(selectedTile.x, selectedTile.y, "horizontal", "half"); setSelectedTile(null); }}>Half Horizontal Wall</button>
+                    <button className="explainhalfwall px-2 py-1 bg-amber-400 text-black text-xs rounded" onClick={() => { props.moves.placeWall(selectedTile.x, selectedTile.y, "horizontal", "half"); setSelectedTile(null); }}>Half Horizontal Wall</button>
                     <button className="px-2 py-1 bg-amber-400 text-black text-xs rounded" onClick={() => { props.moves.placeWall(selectedTile.x, selectedTile.y, "vertical", "half"); setSelectedTile(null); }}>Half Vertical Wall</button>
-                  </div>
                 </div>
-              )}
+              </div>
             </div>
           )}
 
@@ -170,7 +191,8 @@ useEffect(() => {
               <div className="player-info flex justify-between items-center">
                 <div>
                   <p className="text-lg font-bold text-red-400">Player {props.ctx.currentPlayer}</p>
-                  <p className="text-sm text-slate-400">HP: {props.G.players[props.ctx.currentPlayer]?.hp} | AP: {props.G.players[props.ctx.currentPlayer]?.ap}</p>
+                  <p className="player-health text-sm text-slate-400">HP: {props.G.players[props.ctx.currentPlayer]?.hp}</p>
+                  <p className="player-ap text-sm text-slate-400">AP: {props.G.players[props.ctx.currentPlayer]?.ap}</p>
                   {props.G.players[props.ctx.currentPlayer]?.armor > 0 && (
                     <p className="text-sm">Armor: {"🛡️".repeat(props.G.players[props.ctx.currentPlayer]?.armor)}</p>
                   )}
@@ -182,8 +204,8 @@ useEffect(() => {
               </div>
 
               {/* Bullets */}
-              <div>
-                <p className="bullet-display text-sm text-slate-400 mb-1">Bullets</p>
+              <div className ="bullet-display">
+                <p className="text-sm text-slate-400 mb-1">Bullets</p>
                 <div className="flex gap-1">
                   {G.players[props.ctx.currentPlayer]?.bullets.map((b, i) => (
                     <span key={i} className="text-lg">
@@ -225,15 +247,18 @@ useEffect(() => {
                   })}
                 </div>
               </div>
-
+              {/* Card Explanation */}
+              <div className="text-right text-sm text-slate-400 mt-2">
+              Hello
+              </div>
               {/* Action Buttons */}
-              <div className="dpad-turn grid grid-cols-3 gap-1 w-40 mx-auto">
+              <div className="dpad-movement grid grid-cols-3 gap-1 w-40 mx-auto">
   <div></div>
-  <button className="px-3 py-3 bg-slate-700 hover:bg-slate-600 rounded text-lg" onClick={() => props.moves.turnHead("N")}>↑</button>
+  <button className="dpad-turn px-3 py-3 bg-slate-700 hover:bg-slate-600 rounded text-lg" onClick={() => props.moves.turnHead("N")}>↑</button>
   <div></div>
   
   <button className="px-3 py-3 bg-slate-700 hover:bg-slate-600 rounded text-lg" onClick={() => props.moves.turnHead("W")}>←</button>
-  <button className="px-3 py-2 bg-emerald-700 hover:bg-emerald-600 rounded text-sm" onClick={() => props.moves.moveForward()}>Move</button>
+  <button className="dpad-move px-3 py-2 bg-emerald-700 hover:bg-emerald-600 rounded text-sm" onClick={() => props.moves.moveForward()}>Move</button>
   <button className="px-3 py-3 bg-slate-700 hover:bg-slate-600 rounded text-lg" onClick={() => props.moves.turnHead("E")}>→</button>
   
   <div></div>
@@ -241,13 +266,13 @@ useEffect(() => {
   <div></div>
 </div>
 
-<div className="dpad-shoot grid grid-cols-3 gap-1 w-40 mx-auto mt-2">
+<div className="dpad-combat grid grid-cols-3 gap-1 w-40 mx-auto mt-2">
   <div></div>
-  <button className="px-3 py-3 bg-red-700 hover:bg-red-600 rounded text-lg" onClick={() => props.moves.shootForward()}>↑</button>
+  <button className="dpad-shoot px-3 py-3 bg-red-700 hover:bg-red-600 rounded text-lg" onClick={() => props.moves.shootForward()}>↑</button>
   <div></div>
   
-  <button className="px-3 py-3 bg-red-800 hover:bg-red-700 rounded text-lg" onClick={() => props.moves.shootDiagonallyLeft()}>↖</button>
-  <button className="px-3 py-2 bg-yellow-700 hover:bg-yellow-600 rounded text-sm" onClick={() => props.moves.reload()}>🔄</button>
+  <button className="dpad-diagonally px-3 py-3 bg-red-800 hover:bg-red-700 rounded text-lg" onClick={() => props.moves.shootDiagonallyLeft()}>↖</button>
+  <button className="dpad-reload px-3 py-2 bg-yellow-700 hover:bg-yellow-600 rounded text-sm" onClick={() => props.moves.reload()}>🔄</button>
   <button className="px-3 py-3 bg-red-800 hover:bg-red-700 rounded text-lg" onClick={() => props.moves.shootDiagonallyRight()}>↗</button>
 </div>
             </>
