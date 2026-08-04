@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from "react";
 import type { GameState, PlayerState } from "./game";
+import {Joyride, useJoyride} from "react-joyride";
+
 
 
 function Board(props: any) {
@@ -8,12 +10,31 @@ function Board(props: any) {
   const facingArrows: Record<string, string> = {
     N: "↑", E: "→", S: "↓", W: "←",
   };
+  const [wallPreview, setWallPreview] = useState<{ direction: string; type: string } | null>(null);
   const [selectedTile, setSelectedTile] = React.useState<{ x: number, y: number } | null>(null);
   const [hoveredTile, setHoveredTile] = useState<{ x: number; y: number } | null>(null);
   const [pendingCard, setPendingCard] = useState<{ cardIndex: number; cardName: string } | null>(null);
   const [timeLeft, setTimeLeft] = useState(30);
   const [showPassScreen, setShowPassScreen] = useState(true);
-  
+  const wallsteps = [
+  { content: "This is where you place walls during the placement phase.", target: ".board" },
+  { content: "After you click a tile, click one of these buttons to place a wall!", target: ".placewalls" },
+  ];
+  const playsteps = [
+  { content: "These are your stats.", target: ".player-info" },
+  { context: "This is your bullet display.", target : ".bullet-display" },
+  { content: "These are your cards.", target: ".hand-section" },
+  { content: "Turn and move here.", target: ".dpad-turn" },
+  { content: "Shoot here.", target: ".dpad-shoot" },
+  ];
+  const { controls: wallControls, Tour: WallTour } = useJoyride({
+    continuous: true,
+    steps: wallsteps,
+  });
+  const { controls: playControls, Tour: PlayTour } = useJoyride({
+    continuous: true,
+    steps: playsteps,
+  });
   if (props.ctx.gameover) {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center">
@@ -100,12 +121,20 @@ useEffect(() => {
 
   return (
     <div className="min-h-screen bg-slate-900 text-white p-6 font-sans">
+    {WallTour}
       <div className="flex gap-6 max-w-7xl mx-auto">
         
         {/* Left: Board */}
         <div>
-          <h2 className="text-2xl font-bold text-red-500 mb-4"> Desert Royale</h2>
-          <div className="bg-slate-800 p-2 rounded-xl">{grid}</div>
+          <h2 className=" text-2xl font-bold text-red-500 mb-4"> Desert Royale
+            <button 
+    onClick={() => wallControls.start()} 
+    className="ml-4 px-3 py-1 text-sm bg-slate-700 hover:bg-slate-600 rounded"
+  >
+    Start Wall Placement Tutorial
+  </button>
+          </h2>
+          <div className="board bg-slate-800 p-2 rounded-xl">{grid}</div>
           <p className="mt-2 text-slate-400 text-sm">Phase: {G.gamePhase} | Turn: Player {props.ctx.currentPlayer}</p>
           {pendingCard && (
             <p className="text-yellow-400 mt-1">Click a tile to use {pendingCard.cardName}</p>
@@ -118,7 +147,7 @@ useEffect(() => {
           {/* Placement Phase */}
           {G.gamePhase === "placement" && (
             <div>
-              <h3 className="text-lg font-bold text-yellow-400">Place Your Walls</h3>
+              <h3 className="placewalls text-lg font-bold text-yellow-400">Place Your Walls</h3>
               <p>Full: {G.players[props.ctx.currentPlayer]?.wallsToPlace.full} | Half: {G.players[props.ctx.currentPlayer]?.wallsToPlace.half}</p>
               {selectedTile && (
                 <div className="mt-2 space-y-1">
@@ -138,7 +167,7 @@ useEffect(() => {
           {G.gamePhase === "play" && (
             <>
               {/* Timer & Stats */}
-              <div className="flex justify-between items-center">
+              <div className="player-info flex justify-between items-center">
                 <div>
                   <p className="text-lg font-bold text-red-400">Player {props.ctx.currentPlayer}</p>
                   <p className="text-sm text-slate-400">HP: {props.G.players[props.ctx.currentPlayer]?.hp} | AP: {props.G.players[props.ctx.currentPlayer]?.ap}</p>
@@ -154,7 +183,7 @@ useEffect(() => {
 
               {/* Bullets */}
               <div>
-                <p className="text-sm text-slate-400 mb-1">Bullets</p>
+                <p className="bullet-display text-sm text-slate-400 mb-1">Bullets</p>
                 <div className="flex gap-1">
                   {G.players[props.ctx.currentPlayer]?.bullets.map((b, i) => (
                     <span key={i} className="text-lg">
@@ -165,7 +194,7 @@ useEffect(() => {
               </div>
 
               {/* Hand */}
-              <div>
+              <div className ="hand-section">
                 <p className="text-sm text-slate-400 mb-1">Hand</p>
                 <div className="flex gap-2 flex-wrap">
                   {props.G.players[props.ctx.currentPlayer]?.hand.map((cardId, index) => {
@@ -198,17 +227,29 @@ useEffect(() => {
               </div>
 
               {/* Action Buttons */}
-              <div className="grid grid-cols-4 gap-1">
-                <button className="col-span-2 px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded text-sm" onClick={() => props.moves.turnHead("N")}>↑ N</button>
-                <button className="px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded text-sm" onClick={() => props.moves.turnHead("E")}>→ E</button>
-                <button className="px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded text-sm" onClick={() => props.moves.turnHead("W")}>← W</button>
-                <button className="col-span-3 px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded text-sm" onClick={() => props.moves.turnHead("S")}>↓ S</button>
-                <button className="px-3 py-2 bg-emerald-700 hover:bg-emerald-600 rounded text-sm" onClick={() => props.moves.moveForward()}>Move</button>
-                <button className="px-3 py-2 bg-red-700 hover:bg-red-600 rounded text-sm" onClick={() => props.moves.shootForward()}>Shoot</button>
-                <button className="px-3 py-2 bg-red-800 hover:bg-red-700 rounded text-sm" onClick={() => props.moves.shootDiagonallyLeft()}>↖</button>
-                <button className="px-3 py-2 bg-red-800 hover:bg-red-700 rounded text-sm" onClick={() => props.moves.shootDiagonallyRight()}>↗</button>
-                <button className="px-3 py-2 bg-yellow-700 hover:bg-yellow-600 rounded text-sm" onClick={() => props.moves.reload()}>Reload</button>
-              </div>
+              <div className="dpad-turn grid grid-cols-3 gap-1 w-40 mx-auto">
+  <div></div>
+  <button className="px-3 py-3 bg-slate-700 hover:bg-slate-600 rounded text-lg" onClick={() => props.moves.turnHead("N")}>↑</button>
+  <div></div>
+  
+  <button className="px-3 py-3 bg-slate-700 hover:bg-slate-600 rounded text-lg" onClick={() => props.moves.turnHead("W")}>←</button>
+  <button className="px-3 py-2 bg-emerald-700 hover:bg-emerald-600 rounded text-sm" onClick={() => props.moves.moveForward()}>Move</button>
+  <button className="px-3 py-3 bg-slate-700 hover:bg-slate-600 rounded text-lg" onClick={() => props.moves.turnHead("E")}>→</button>
+  
+  <div></div>
+  <button className="px-3 py-3 bg-slate-700 hover:bg-slate-600 rounded text-lg" onClick={() => props.moves.turnHead("S")}>↓</button>
+  <div></div>
+</div>
+
+<div className="dpad-shoot grid grid-cols-3 gap-1 w-40 mx-auto mt-2">
+  <div></div>
+  <button className="px-3 py-3 bg-red-700 hover:bg-red-600 rounded text-lg" onClick={() => props.moves.shootForward()}>↑</button>
+  <div></div>
+  
+  <button className="px-3 py-3 bg-red-800 hover:bg-red-700 rounded text-lg" onClick={() => props.moves.shootDiagonallyLeft()}>↖</button>
+  <button className="px-3 py-2 bg-yellow-700 hover:bg-yellow-600 rounded text-sm" onClick={() => props.moves.reload()}>🔄</button>
+  <button className="px-3 py-3 bg-red-800 hover:bg-red-700 rounded text-lg" onClick={() => props.moves.shootDiagonallyRight()}>↗</button>
+</div>
             </>
           )}
         </div>
@@ -216,5 +257,4 @@ useEffect(() => {
     </div>
   );
 }
-
 export default Board;
