@@ -1,14 +1,10 @@
 # Desert Royale
 
-[![Deployed on Vercel](https://img.shields.io/badge/Play_Live-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://desert-royale-kappa.vercel.app/)
+[![Deployed on Vercel](https://img.shields.io/badge/Play_Live-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://desert-royale-6nr1dl79k-iluvseals4.vercel.app/)
 
 A turn-based survival board game set in the wild west. Players fight to be the last one standing in a grid-based arena with walls. Players can use special action cards that do various special things.
 
 ## Built for Macondo Hack Club — A Digital Adaptation of an original board game by Yacob England (Inspired By Guncho)
-
-## Play Now
-
-**Live Demo** [https://desert-royale-kappa.vercel.app/](https://desert-royale-kappa.vercel.app/)
 
 ## How to Play
 
