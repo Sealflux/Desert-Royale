@@ -12,7 +12,7 @@ A turn-based survival board game set in the wild west. Players fight to be the l
 
 ## How to Play
 
-- 2-6 Players place walls, and then take turns doing game actions.
+- 3 Players place walls, and then take turns doing game actions.
 - Each Turn: 2 Action Points which can be alloted to move, turn, shoot, reload, or play cards.
 - Currently 26 Action Cards implemented across four different types (Movement, Combat, Utility, Bullet).
 - Last Player Alive Wins
